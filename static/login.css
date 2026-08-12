@@ -1,0 +1,100 @@
+/* ==========================================================================
+   LOGIN PAGE
+   Reuses the --bg / --surface / --primary / --border etc. tokens defined in
+   style.css (loaded first in login.html), so this stays on-brand with the
+   rest of the app automatically if you ever retune the palette there.
+   ========================================================================== */
+
+.login-body {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    font-family: var(--font-body);
+}
+
+.login-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px 32px;
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.login-logo {
+    color: var(--primary);
+    font-size: 30px;
+    margin-bottom: 16px;
+}
+
+.login-card h1 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 4px;
+}
+
+.login-subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 28px;
+}
+
+#login-form {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    gap: 6px;
+}
+
+#login-form label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-top: 10px;
+}
+
+#login-form input {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .15s;
+}
+
+#login-form input:focus {
+    border-color: var(--primary);
+}
+
+.login-error {
+    min-height: 18px;
+    font-size: 13px;
+    color: var(--danger);
+    margin-top: 10px;
+}
+
+#login-btn {
+    margin-top: 18px;
+    padding: 13px;
+    background: var(--primary);
+    color: var(--on-primary);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+#login-btn:hover:not(:disabled) { background: var(--primary-hover); }
+#login-btn:disabled { opacity: .6; cursor: not-allowed; }
