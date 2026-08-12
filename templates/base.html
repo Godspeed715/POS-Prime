@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Kitchen &amp; Counter — POS{% endblock %}</title>
+
+    <!--
+        FASTAPI SETUP
+        This assumes the standard layout:
+            app/
+              main.py
+              templates/
+                base.html   <- this file
+                pos.html
+              static/
+                style.css
+                script.js
+
+        In main.py:
+            from fastapi.staticfiles import StaticFiles
+            from fastapi.templating import Jinja2Templates
+            app.mount("/static", StaticFiles(directory="static"), name="static")
+            templates = Jinja2Templates(directory="templates")
+
+        That's what makes `url_for('static', path=...)` below resolve correctly.
+    -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <!-- Display face: Bricolage Grotesque (headings) — Body/UI face: Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <div class="app-container">
+        <!-- LEFT SIDEBAR -->
+        <nav class="sidebar" aria-label="Primary">
+            <div class="logo"><i class="fa-solid fa-circle-notch"></i></div>
+            <div class="nav-links">
+                <a href="/pos" title="Point of sale" aria-label="Point of sale" class="{{ 'active' if request.url.path == '/pos' else '' }}" {{ 'aria-current=page' if request.url.path == '/pos' else '' }}><i class="fa-solid fa-border-all"></i></a>
+                <a href="/stock" title="Stock management" aria-label="Stock management" data-role-required="admin,super_admin" class="{{ 'active' if request.url.path == '/stock' else '' }}" {{ 'aria-current=page' if request.url.path == '/stock' else '' }}><i class="fa-solid fa-boxes-stacked"></i></a>
+                <a href="/reconcile" title="Reconcile nameless stock" aria-label="Reconcile nameless stock" data-role-required="admin,super_admin" class="{{ 'active' if request.url.path == '/reconcile' else '' }}" {{ 'aria-current=page' if request.url.path == '/reconcile' else '' }}><i class="fa-solid fa-code-merge"></i></a>
+            </div>
+            <div class="nav-bottom">
+                <a href="/" title="Settings — back to main site" aria-label="Settings"><i class="fa-solid fa-gear"></i></a>
+                <a href="#" title="Log out" aria-label="Log out" data-action="logout"><i class="fa-solid fa-power-off"></i></a>
+            </div>
+        </nav>
+
+        <!-- DYNAMIC CONTENT AREA -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Child templates inject their <script> tags here, after all DOM exists -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>
