@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Stock — Kitchen &amp; Counter{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', path='stock.css') }}">
+{% endblock %}
+
+{% block content %}
+<!--
+    Admin/super_admin only — stock.js calls Auth.requireAuth(['admin','super_admin'])
+    on load and redirects anyone else away before this renders meaningfully.
+    All data below is mock (see MOCK_PRODUCTS in stock.js) until the backend
+    routes exist — every place a real API call will eventually go is marked.
+-->
+<section class="stock-section" id="top">
+    <header class="stock-header">
+        <h2 class="breadcrumb">Inventory</h2>
+        <div class="header-controls">
+            <h1>Stock Management</h1>
+            <div class="search-bar">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="stock-search" placeholder="Search products...">
+            </div>
+            <select id="category-filter" class="category-filter">
+                <option value="All">All categories</option>
+            </select>
+            <button id="add-product-btn" class="primary-btn"><i class="fa-solid fa-plus"></i> Add Product</button>
+        </div>
+    </header>
+
+    <div class="table-wrap">
+        <table class="stock-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th>QR Code</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="stock-table-body">
+                <!-- Populated by stock.js -->
+            </tbody>
+        </table>
+        <div class="empty-state" id="stock-empty-state" style="display:none;">
+            <i class="fa-solid fa-box-open"></i>No products match your search.
+        </div>
+    </div>
+</section>
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-overlay" id="product-modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+        <div class="modal-header">
+            <h2 id="product-modal-title">Add Product</h2>
+            <button class="modal-close" id="product-modal-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <form id="product-form">
+            <input type="hidden" id="product-id">
+
+            <label for="product-name">Name</label>
+            <input type="text" id="product-name" required>
+
+            <div class="form-row">
+                <div>
+                    <label for="product-category">Category</label>
+                    <select id="product-category" required>
+                        <!-- Populated by stock.js from CategoryIcons.list() — the six
+                             fixed categories are the single source of truth in
+                             category-icons.js, not hardcoded here. -->
+                    </select>
+                </div>
+                <div>
+                    <label for="product-qr">QR Code <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
+                    <input type="text" id="product-qr" placeholder="Leave blank if unused">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="product-price">Price (₦)</label>
+                    <input type="number" id="product-price" min="0" step="0.01" required>
+                </div>
+                <div>
+                    <label for="product-stock">Stock quantity</label>
+                    <input type="number" id="product-stock" min="0" step="1" required>
+                </div>
+            </div>
+
+            <label>Product icon</label>
+            <p class="icon-hint">Products don't have individual photos — the icon is set automatically from the category above.</p>
+            <div class="image-preview-wrap">
+                <img id="image-preview" alt="Category icon preview">
+            </div>
+
+            <div class="modal-error" id="product-form-error" role="alert" aria-live="polite"></div>
+
+            <div class="modal-actions">
+                <button type="button" class="secondary-btn" id="product-cancel-btn">Cancel</button>
+                <button type="submit" class="primary-btn" id="product-save-btn">Save Product</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- REMOVE CONFIRMATION MODAL -->
+<div class="modal-overlay" id="remove-modal-overlay">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="remove-modal-title">
+        <div class="modal-header">
+            <h2 id="remove-modal-title">Remove product</h2>
+            <button class="modal-close" id="remove-modal-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <p class="remove-modal-text" id="remove-modal-text"></p>
+        <div class="modal-actions">
+            <button type="button" class="secondary-btn" id="remove-cancel-btn">Cancel</button>
+            <button type="button" class="danger-btn" id="remove-confirm-btn">Remove</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='category-icons.js') }}"></script>
+<script src="{{ url_for('static', path='auth.js') }}"></script>
+<script src="{{ url_for('static', path='stock.js') }}" defer></script>
+{% endblock %}
