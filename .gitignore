@@ -2,3 +2,5 @@ __pycache__/
 .venv/
 .env
 *Zone.Identifier*
+static_0/
+templates_0
