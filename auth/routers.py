@@ -3,7 +3,8 @@ from auth.models import LoginRequest
 from typing import Annotated
 from auth.utils import get_access_token, get_refresh_token
 MOCK_DB = {
-    'roman': {'password': 'pass', 'role': 'cashier', 'refresh_token': None}
+    'roman': {'password': 'pass', 'role': 'cashier', 'refresh_token': None},
+    'admin': {'password': 'pass', 'role': 'admin', 'refresh_token': None}
 }
 
 router = APIRouter(prefix='/api/auth', tags=['Auth'])
