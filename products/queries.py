@@ -26,6 +26,17 @@ async def fetch_all_products(aconn: AsyncConnection) -> list:
         ''')
         return await cur.fetchall()
 
+
+async def fetch_all_products_with_stock(aconn: AsyncConnection) -> list:
+    '''Returns a list of all products available'''
+
+    async with aconn.cursor(row_factory=dict_row) as cur:
+        await cur.execute('''
+            SELECT id, name, price, category, color, barcode, stock_quantity AS stock FROM products 
+
+        ''')
+        return await cur.fetchall()
+    
 async def fetch_all_stock(aconn: AsyncConnection) -> dict:
     '''Returns a list of all products available'''
 

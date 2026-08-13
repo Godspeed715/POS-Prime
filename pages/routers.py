@@ -21,6 +21,13 @@ async def login(request: Request):
         name='login.html',
     )
 
+@router.get('/stock')
+async def stock(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name='stock.html'
+    )
+
 @router.get('/home')
 async def home():
     return{

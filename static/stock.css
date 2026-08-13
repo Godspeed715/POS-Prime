@@ -1,0 +1,159 @@
+/* ==========================================================================
+   STOCK MANAGEMENT PAGE
+   Reuses design tokens (--bg, --surface, --primary, --border, etc.) and
+   shared classes (.search-bar, .icon-btn, .breadcrumb, .header-controls,
+   .empty-state, #toast) already defined in style.css, loaded first via
+   base.html. Only stock-page-specific things live here.
+   ========================================================================== */
+
+.stock-section { flex: 1; padding: 32px; overflow-y: auto; }
+
+.category-filter {
+    padding: 11px 16px;
+    border-radius: 30px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.primary-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--primary); color: var(--on-primary);
+    border: none; padding: 12px 20px; border-radius: 30px;
+    font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+    transition: background .15s;
+}
+.primary-btn:hover:not(:disabled) { background: var(--primary-hover); }
+
+.secondary-btn {
+    background: var(--surface-alt); color: var(--text-main);
+    border: 1px solid var(--border); padding: 12px 20px; border-radius: 30px;
+    font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+}
+
+.danger-btn {
+    background: var(--danger); color: #fff;
+    border: none; padding: 12px 20px; border-radius: 30px;
+    font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------
+   TABLE
+--------------------------------------------------------------------- */
+.table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.stock-table { width: 100%; border-collapse: collapse; }
+
+.stock-table th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.stock-table td {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    vertical-align: middle;
+}
+.stock-table tr:last-child td { border-bottom: none; }
+.stock-table tr:hover td { background: var(--surface-alt); }
+
+.stock-thumb {
+    width: 42px; height: 42px; border-radius: 10px; object-fit: cover; display: block;
+}
+
+.stock-name { font-weight: 700; }
+.stock-barcode { color: var(--text-muted); font-size: 12px; }
+
+.stock-qty { font-weight: 700; }
+.stock-qty.low { color: var(--danger); }
+.stock-qty.zero { color: var(--danger); }
+
+.row-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.row-actions button {
+    background: var(--surface-alt); border: 1px solid var(--border);
+    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+    color: var(--text-main); font-size: 13px;
+}
+.row-actions button:hover { background: var(--border); }
+.row-actions button.danger-icon:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+/* ---------------------------------------------------------------------
+   MODALS (shared shape — used for add/edit and remove-confirm)
+--------------------------------------------------------------------- */
+.modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    align-items: center; justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+.modal-overlay.show { display: flex; }
+
+.modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+}
+.modal.modal-sm { max-width: 380px; }
+
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.modal-header h2 { font-family: var(--font-display); font-size: 19px; }
+.modal-close {
+    background: var(--surface-alt); border: 1px solid var(--border);
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer; color: var(--text-main);
+}
+
+#product-form { display: flex; flex-direction: column; gap: 4px; }
+#product-form label { font-size: 13px; font-weight: 700; margin-top: 12px; color: var(--text-main); }
+#product-form input, #product-form select {
+    padding: 11px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg); color: var(--text-main); font-family: inherit; font-size: 14px; outline: none;
+}
+#product-form input:focus { border-color: var(--primary); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-row > div { display: flex; flex-direction: column; }
+
+/* Generic pill-toggle-tab component — despite the name, also reused by
+   reconcile.css for the "match existing / create new" method toggle. */
+.image-tab {
+    flex: 1; padding: 9px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface-alt); color: var(--text-main); cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600;
+}
+.image-tab.active { background: var(--text-main); color: var(--bg); border-color: var(--text-main); }
+
+.icon-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; margin-bottom: 4px; }
+
+.image-preview-wrap {
+    margin-top: 8px; height: 90px; width: 90px; border-radius: var(--radius-sm);
+    background: var(--surface-alt); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.image-preview-wrap img { height: 100%; width: 100%; object-fit: cover; }
+
+.modal-error { min-height: 18px; font-size: 13px; color: var(--danger); margin-top: 12px; }
+
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+.remove-modal-text { color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+.remove-modal-text strong { color: var(--text-main); }
