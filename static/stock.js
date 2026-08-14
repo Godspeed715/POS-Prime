@@ -71,8 +71,9 @@
     let nextId = 100;
 
     async function fetchProductsFromServer() {
-        // REAL VERSION: const res = await Auth.authFetch('/api/products'); return res.json();
-        return MOCK_PRODUCTS;
+        // REAL VERSION: 
+        const res = await Auth.authFetch('/api/products_with_stocks'); return res.json();
+        // return MOCK_PRODUCTS;
     }
 
     /* ---------------------------------------------------------------------
