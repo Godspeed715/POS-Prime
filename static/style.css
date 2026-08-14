@@ -7,7 +7,7 @@
      3. App shell layout
      4. Sidebar
      5. Products area (header, search, categories, grid)
-     6. QR scanner panel
+     6. Barcode scanner panel
      7. Cart panel
      8. Toast notifications
      9. Responsive (tablet/mobile)
@@ -237,11 +237,11 @@ h1,
 .add-btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
 
 /* ==========================================================================
-   6. QR SCANNER PANEL (hidden by default, toggled by script.js)
+   6. BARCODE SCANNER PANEL (hidden by default, toggled by script.js)
    ========================================================================== */
-#qr-reader-container { display: none; margin-bottom: 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
-#qr-reader { width: 100%; max-width: 380px; margin: 0 auto 12px; border-radius: 12px; overflow: hidden; }
-#qr-status { text-align: center; font-size: 13px; color: var(--text-muted); margin-bottom: 10px; min-height: 18px; }
+#barcode-reader-container { display: none; margin-bottom: 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+#barcode-reader { width: 100%; max-width: 380px; margin: 0 auto 12px; border-radius: 12px; overflow: hidden; }
+#barcode-status { text-align: center; font-size: 13px; color: var(--text-muted); margin-bottom: 10px; min-height: 18px; }
 .close-scanner-btn {
     width: 100%; padding: 11px; background: var(--surface-alt); color: var(--text-main);
     border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 600;

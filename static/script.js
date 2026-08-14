@@ -487,18 +487,34 @@
     }
 
     /* ---------------------------------------------------------------------
-       QR SCANNER — matches against products.qr_code (nullable, so not
-       every product will have one; unmatched scans just show "no match")
+       BARCODE SCANNER — matches against products.qr_code (the schema's
+       column name; functionally this is a barcode, not a QR code — the
+       library is configured below to recognize 1D retail barcode formats,
+       not QR codes). Nullable, so not every product will have one;
+       unmatched scans just show "no match".
     --------------------------------------------------------------------- */
-    const qrContainer = document.getElementById('qr-reader-container');
-    const qrStatus = document.getElementById('qr-status');
+    const barcodeContainer = document.getElementById('barcode-reader-container');
+    const barcodeStatus = document.getElementById('barcode-status');
     const startBtn = document.getElementById('start-scanner-btn');
     const closeBtn = document.getElementById('close-scanner-btn');
     let scanner = null;
 
+    // Retail barcode formats — deliberately excludes QR_CODE. If you ever
+    // want to accept both QR and barcode in the same scanner, add
+    // Html5QrcodeSupportedFormats.QR_CODE back into this list.
+    const BARCODE_FORMATS = typeof Html5QrcodeSupportedFormats !== 'undefined' ? [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.ITF,
+    ] : undefined;
+
     function stopScanner() {
         if (scanner) { scanner.clear().catch(() => {}); scanner = null; }
-        qrContainer.style.display = 'none';
+        barcodeContainer.style.display = 'none';
     }
 
     function onScanSuccess(decodedText) {
@@ -509,14 +525,18 @@
     }
 
     startBtn.addEventListener('click', () => {
-        if (typeof Html5QrcodeScanner === 'undefined') { showToast('QR scanner library failed to load — check your connection.'); return; }
-        qrContainer.style.display = 'block';
-        qrStatus.textContent = 'Point the camera at a product QR code.';
+        if (typeof Html5QrcodeScanner === 'undefined') { showToast('Barcode scanner library failed to load — check your connection.'); return; }
+        barcodeContainer.style.display = 'block';
+        barcodeStatus.textContent = 'Point the camera at a product barcode.';
         try {
-            scanner = new Html5QrcodeScanner('qr-reader', { fps: 10, qrbox: { width: 240, height: 240 } }, false);
+            scanner = new Html5QrcodeScanner('barcode-reader', {
+                fps: 10,
+                qrbox: { width: 280, height: 120 }, // wide rectangle suits 1D barcodes better than a square box
+                ...(BARCODE_FORMATS ? { formatsToSupport: BARCODE_FORMATS } : {}),
+            }, false);
             scanner.render(onScanSuccess, () => { /* ignore background scan noise */ });
         } catch (err) {
-            qrStatus.textContent = 'Camera unavailable — check permissions or try a different device.';
+            barcodeStatus.textContent = 'Camera unavailable — check permissions or try a different device.';
             console.error(err);
         }
     });

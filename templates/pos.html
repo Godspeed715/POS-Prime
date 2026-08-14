@@ -30,8 +30,8 @@
                 <input type="text" id="search-input" placeholder="Search products...">
             </div>
 
-            <button id="start-scanner-btn" class="icon-btn primary" title="Scan QR" aria-label="Scan QR code">
-                <i class="fa-solid fa-qrcode"></i>
+            <button id="start-scanner-btn" class="icon-btn primary" title="Scan Barcode" aria-label="Scan barcode">
+                <i class="fa-solid fa-barcode"></i>
             </button>
             <button id="add-custom-btn" class="icon-btn" title="Add Custom Item" aria-label="Add custom item">
                 <i class="fa-solid fa-pen"></i>
@@ -43,10 +43,10 @@
         </div>
     </header>
 
-    <!-- QR Reader Container (hidden until "Scan QR" is clicked) -->
-    <div id="qr-reader-container">
-        <div id="qr-reader"></div>
-        <div id="qr-status"></div>
+    <!-- Barcode Reader Container (hidden until "Scan Barcode" is clicked) -->
+    <div id="barcode-reader-container">
+        <div id="barcode-reader"></div>
+        <div id="barcode-status"></div>
         <button id="close-scanner-btn" class="close-scanner-btn">Close Scanner</button>
     </div>
 
@@ -87,7 +87,7 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- QR scanning library — script.js checks for it and fails gracefully if this is blocked -->
+<!-- Barcode scanning library — script.js checks for it and fails gracefully if this is blocked -->
 <script src="https://unpkg.com/html5-qrcode" defer></script>
 <script src="{{ url_for('static', path='category-icons.js') }}"></script>
 <script src="{{ url_for('static', path='auth.js') }}"></script>

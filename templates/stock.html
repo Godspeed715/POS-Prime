@@ -26,8 +26,16 @@
                 <option value="All">All categories</option>
             </select>
             <button id="add-product-btn" class="primary-btn"><i class="fa-solid fa-plus"></i> Add Product</button>
+            <button id="add-barcode-btn" class="secondary-btn"><i class="fa-solid fa-barcode"></i> Add with Barcode</button>
         </div>
     </header>
+
+    <!-- Barcode Reader Container (hidden until "Add with Barcode" is clicked) -->
+    <div id="barcode-reader-container">
+        <div id="barcode-reader"></div>
+        <div id="barcode-status"></div>
+        <button id="close-scanner-btn" class="close-scanner-btn">Close Scanner</button>
+    </div>
 
     <div class="table-wrap">
         <table class="stock-table">
@@ -38,7 +46,7 @@
                     <th>Category</th>
                     <th>Price</th>
                     <th>Stock</th>
-                    <th>QR Code</th>
+                    <th>Barcode</th>
                     <th></th>
                 </tr>
             </thead>
@@ -76,8 +84,8 @@
                     </select>
                 </div>
                 <div>
-                    <label for="product-qr">QR Code <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
-                    <input type="text" id="product-qr" placeholder="Leave blank if unused">
+                    <label for="product-barcode">Barcode <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
+                    <input type="text" id="product-barcode" placeholder="Leave blank if unused">
                 </div>
             </div>
 
@@ -125,6 +133,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://unpkg.com/html5-qrcode" defer></script>
 <script src="{{ url_for('static', path='category-icons.js') }}"></script>
 <script src="{{ url_for('static', path='auth.js') }}"></script>
 <script src="{{ url_for('static', path='stock.js') }}" defer></script>

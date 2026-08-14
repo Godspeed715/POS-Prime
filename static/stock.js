@@ -10,6 +10,11 @@
    loaded before this file). There's no per-product image field to manage
    at all, which is why the Add/Edit form has no upload/URL controls — the
    icon preview just follows whichever category is selected.
+
+   The "Barcode" field maps to the schema's `qr_code` column — that column
+   name is a holdover from when this was designed as QR scanning; it's
+   functionally a barcode field now (see the Html5QrcodeScanner config
+   below, restricted to EAN/UPC/CODE-128/etc formats, not QR_CODE).
    ========================================================================== */
 
 (function () {
@@ -66,9 +71,8 @@
     let nextId = 100;
 
     async function fetchProductsFromServer() {
-        // REAL VERSION:
-        const res = await Auth.authFetch('/api/products_with_stocks'); return res.json();
-        // return MOCK_PRODUCTS;
+        // REAL VERSION: const res = await Auth.authFetch('/api/products'); return res.json();
+        return MOCK_PRODUCTS;
     }
 
     /* ---------------------------------------------------------------------
@@ -83,10 +87,9 @@
     const tableBody = document.getElementById('stock-table-body');
     const emptyState = document.getElementById('stock-empty-state');
 
-    async function renderTable() {
+    function renderTable() {
         const term = searchTerm.trim().toLowerCase();
-        const products = await fetchProductsFromServer();
-        const filtered = products.filter(p => {
+        const filtered = MOCK_PRODUCTS.filter(p => {
             const matchesTerm = !term || p.name.toLowerCase().includes(term) || (p.qr_code || '').toLowerCase().includes(term);
             const matchesCategory = categoryFilter === 'All' || p.category === categoryFilter;
             return matchesTerm && matchesCategory;
@@ -147,13 +150,13 @@
     }
     categorySelect.addEventListener('change', updateIconPreview);
 
-    function openProductModal(product = null) {
+    function openProductModal(product = null, prefillBarcode = null) {
         editingId = product ? product.id : null;
         document.getElementById('product-modal-title').textContent = product ? 'Edit Product' : 'Add Product';
         document.getElementById('product-id').value = product ? product.id : '';
         document.getElementById('product-name').value = product ? product.name : '';
         document.getElementById('product-category').value = product ? product.category : CategoryIcons.list()[0];
-        document.getElementById('product-qr').value = product ? (product.qr_code || '') : '';
+        document.getElementById('product-barcode').value = product ? (product.barcode || '') : (prefillBarcode || '');
         document.getElementById('product-price').value = product ? product.price : '';
         document.getElementById('product-stock').value = product ? product.stock : '';
         productFormError.textContent = '';
@@ -173,13 +176,76 @@
     document.getElementById('product-cancel-btn').addEventListener('click', closeProductModal);
     productModalOverlay.addEventListener('click', (e) => { if (e.target === productModalOverlay) closeProductModal(); });
 
+    /* ---------------------------------------------------------------------
+       ADD WITH BARCODE
+       Scans a retail barcode and pre-fills the "Barcode" field of the
+       Add/Edit modal so the admin only has to type in the rest — name,
+       category, price, stock. If the scanned code already belongs to an
+       existing product, opens that product in edit mode instead of risking
+       a duplicate qr_code (the schema column this maps to — should stay
+       unique).
+    --------------------------------------------------------------------- */
+    const barcodeContainer = document.getElementById('barcode-reader-container');
+    const barcodeStatus = document.getElementById('barcode-status');
+    const addBarcodeBtn = document.getElementById('add-barcode-btn');
+    const closeScannerBtn = document.getElementById('close-scanner-btn');
+    let scanner = null;
+
+    // Retail barcode formats — deliberately excludes QR_CODE.
+    const BARCODE_FORMATS = typeof Html5QrcodeSupportedFormats !== 'undefined' ? [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.ITF,
+    ] : undefined;
+
+    function stopScanner() {
+        if (scanner) { scanner.clear().catch(() => {}); scanner = null; }
+        barcodeContainer.style.display = 'none';
+    }
+
+    function onBarcodeScanSuccess(decodedText) {
+        stopScanner();
+
+        const existing = MOCK_PRODUCTS.find(p => p.qr_code === decodedText);
+        if (existing) {
+            showToast(`This barcode is already linked to "${existing.name}" — editing it.`);
+            openProductModal(existing);
+            return;
+        }
+
+        showToast('Barcode captured — fill in the rest.');
+        openProductModal(null, decodedText);
+    }
+
+    addBarcodeBtn.addEventListener('click', () => {
+        if (typeof Html5QrcodeScanner === 'undefined') { showToast('Barcode scanner library failed to load — check your connection.'); return; }
+        barcodeContainer.style.display = 'block';
+        barcodeStatus.textContent = 'Point the camera at the product\u2019s barcode.';
+        try {
+            scanner = new Html5QrcodeScanner('barcode-reader', {
+                fps: 10,
+                qrbox: { width: 280, height: 120 }, // wide rectangle suits 1D barcodes better than a square box
+                ...(BARCODE_FORMATS ? { formatsToSupport: BARCODE_FORMATS } : {}),
+            }, false);
+            scanner.render(onBarcodeScanSuccess, () => { /* ignore background scan noise */ });
+        } catch (err) {
+            barcodeStatus.textContent = 'Camera unavailable — check permissions or try a different device.';
+            console.error(err);
+        }
+    });
+    closeScannerBtn.addEventListener('click', stopScanner);
+
     productForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         productFormError.textContent = '';
 
         const name = document.getElementById('product-name').value.trim();
         const category = document.getElementById('product-category').value;
-        const qrCode = document.getElementById('product-qr').value.trim();
+        const barcodeValue = document.getElementById('product-barcode').value.trim();
         const price = parseFloat(document.getElementById('product-price').value);
         const stock = parseInt(document.getElementById('product-stock').value, 10);
 
@@ -192,7 +258,7 @@
         saveBtn.textContent = 'Saving...';
 
         try {
-            await saveProduct({ id: editingId, name, category, qr_code: qrCode || null, price, stock });
+            await saveProduct({ id: editingId, name, category, qr_code: barcodeValue || null, price, stock });
             closeProductModal();
             renderTable();
             showToast(editingId ? `${name} updated.` : `${name} added.`);
