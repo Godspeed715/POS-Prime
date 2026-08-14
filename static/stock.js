@@ -88,9 +88,10 @@
     const tableBody = document.getElementById('stock-table-body');
     const emptyState = document.getElementById('stock-empty-state');
 
-    function renderTable() {
+    async function renderTable() {
         const term = searchTerm.trim().toLowerCase();
-        const filtered = MOCK_PRODUCTS.filter(p => {
+        const products = await fetchProductsFromServer();
+        const filtered = products.filter(p => {
             const matchesTerm = !term || p.name.toLowerCase().includes(term) || (p.qr_code || '').toLowerCase().includes(term);
             const matchesCategory = categoryFilter === 'All' || p.category === categoryFilter;
             return matchesTerm && matchesCategory;
