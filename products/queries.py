@@ -21,7 +21,7 @@ async def fetch_all_products(aconn: AsyncConnection) -> list:
 
     async with aconn.cursor(row_factory=dict_row) as cur:
         await cur.execute('''
-            SELECT id, name, price, category, color, barcode FROM products 
+            SELECT id, name, price, category, barcode FROM products 
 
         ''')
         return await cur.fetchall()
@@ -32,7 +32,7 @@ async def fetch_all_products_with_stock(aconn: AsyncConnection) -> list:
 
     async with aconn.cursor(row_factory=dict_row) as cur:
         await cur.execute('''
-            SELECT id, name, price, category, color, barcode, stock_quantity AS stock FROM products 
+            SELECT id, name, price, category, barcode, stock_quantity AS stock FROM products 
 
         ''')
         return await cur.fetchall()
