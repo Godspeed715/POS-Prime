@@ -4,6 +4,7 @@ import time
 from core.settings import SECRET_KEY, ALGORITHM
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException
+import hashlib
 
 
 oauth2_bearer = OAuth2PasswordBearer('api/auth/login')
@@ -26,5 +27,8 @@ def get_access_token(username: str, role: str):
     return jwt.encode(payload, SECRET_KEY, ALGORITHM)
 
 def get_refresh_token():
-    return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(64)
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
