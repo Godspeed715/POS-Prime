@@ -58,15 +58,15 @@
        boundary if your API returns the raw column name).
     ======================================================================= */
     let MOCK_PRODUCTS = [
-        { id: 1, name: 'Rice (50kg bag)',        price: 65000, category: 'Food and Dry Staples',          stock: 12, qr_code: '' },
-        { id: 2, name: 'Groundnut Oil (5L)',      price: 8500,  category: 'Oils, Spices, and Condiments',  stock: 20, qr_code: '' },
-        { id: 3, name: 'Maggi Cubes (pack)',      price: 500,   category: 'Oils, Spices, and Condiments',  stock: 60, qr_code: '' },
-        { id: 4, name: 'Coca-Cola (35cl)',        price: 400,   category: 'Beverages and Snacks',          stock: 48, qr_code: '' },
-        { id: 5, name: 'Indomie (carton)',        price: 5200,  category: 'Food and Dry Staples',          stock: 15, qr_code: '' },
-        { id: 6, name: 'Dettol Soap',             price: 700,   category: 'Toiletries and Household Care', stock: 30, qr_code: '' },
-        { id: 7, name: 'Closeup Toothpaste',      price: 900,   category: 'Toiletries and Household Care', stock: 22, qr_code: '' },
-        { id: 8, name: 'Vaseline Lotion',         price: 2200,  category: 'Cosmetics and Grooming',        stock: 3,  qr_code: '' },
-        { id: 9, name: 'Phone Charger (Type-C)',  price: 3500,  category: 'Electronics',                   stock: 10, qr_code: '' }
+        { id: 1, name: 'Rice (50kg bag)',        price: 65000, category: 'Food and Dry Staples',          stock: 12, barcode: '' },
+        { id: 2, name: 'Groundnut Oil (5L)',      price: 8500,  category: 'Oils, Spices, and Condiments',  stock: 20, barcode: '' },
+        { id: 3, name: 'Maggi Cubes (pack)',      price: 500,   category: 'Oils, Spices, and Condiments',  stock: 60, barcode: '' },
+        { id: 4, name: 'Coca-Cola (35cl)',        price: 400,   category: 'Beverages and Snacks',          stock: 48, barcode: '' },
+        { id: 5, name: 'Indomie (carton)',        price: 5200,  category: 'Food and Dry Staples',          stock: 15, barcode: '' },
+        { id: 6, name: 'Dettol Soap',             price: 700,   category: 'Toiletries and Household Care', stock: 30, barcode: '' },
+        { id: 7, name: 'Closeup Toothpaste',      price: 900,   category: 'Toiletries and Household Care', stock: 22, barcode: '' },
+        { id: 8, name: 'Vaseline Lotion',         price: 2200,  category: 'Cosmetics and Grooming',        stock: 3,  barcode: '' },
+        { id: 9, name: 'Phone Charger (Type-C)',  price: 3500,  category: 'Electronics',                   stock: 10, barcode: '' }
     ];
     let nextId = 100;
 
@@ -260,7 +260,7 @@
         saveBtn.textContent = 'Saving...';
 
         try {
-            await saveProduct({ id: editingId, name, category, qr_code: barcodeValue || null, price, stock });
+            await saveProduct({ id: editingId, name, category, barcode: barcodeValue || null, price, stock });
             closeProductModal();
             renderTable();
             showToast(editingId ? `${name} updated.` : `${name} added.`);
