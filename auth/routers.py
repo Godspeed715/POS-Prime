@@ -1,36 +1,40 @@
-from fastapi import APIRouter, HTTPException, Response, Cookie
+from fastapi import APIRouter, HTTPException, Response, Cookie, Depends
 from auth.models import LoginRequest
 from typing import Annotated
-from auth.utils import get_access_token, get_refresh_token
-MOCK_DB = {
-    'roman': {'password': 'pass', 'role': 'cashier', 'refresh_token': None},
-    'admin': {'password': 'pass', 'role': 'admin', 'refresh_token': None}
-}
+from core.database import get_db
+from auth.utils import *
+from auth.queries import *
+from datetime import datetime, timedelta, timezone
 
+  
 router = APIRouter(prefix='/api/auth', tags=['Auth'])
 
 SessionCookie = Annotated[str | None, Cookie(description="The active login session token")]
 
 @router.post('/login')
-async def login(request: LoginRequest, response: Response):
+async def login(request: LoginRequest, response: Response, aconn = Depends(get_db)):
     username = request.username
     password = request.password
-    if username not in MOCK_DB:
+    if not await user_exists(aconn, username):
         raise HTTPException(
             status_code=401,
             detail= 'User Not Found.'
         )
-    if MOCK_DB[username]['password'] != password:
+    user_data = await get_user_auth_data(aconn, username)
+    if  password!=user_data['password_hash']:
         raise HTTPException(
             status_code=401,
             detail= 'Password Incorrect.'
         )
-    role = MOCK_DB[username]['role']
+    
+    role = user_data['role']
    
     access_token = get_access_token(username, role)
     refresh_token = get_refresh_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
-    MOCK_DB[username]['refresh_token'] = refresh_token
+    await set_refresh_token(aconn, user_data['id'], hash_token(refresh_token), expires_at)
+
     response.set_cookie(
         key='refresh_token',
         value=refresh_token, 
@@ -38,27 +42,26 @@ async def login(request: LoginRequest, response: Response):
         secure=True,
         samesite='lax',
         path='/api/auth',
-        max_age=60*60*24 * 30
+        max_age=60*60*24 *7 #change 7 for the number of days
     )
     
     return{
         'access_token': access_token, 
-        'username': username,
+        'username': user_data['username'],
         'role': role
     }
 
 @router.post('/refresh')
-async def refresh(refresh_token: SessionCookie = None):
-    # -----------------Add change refresh_token----------------------------------
-    refresh_tokens = {data['refresh_token']:user for user,data in MOCK_DB.items() if data['refresh_token'] is not None}
-    if not refresh_token or refresh_token not in refresh_tokens:
+async def refresh(refresh_token: SessionCookie = None, aconn = Depends(get_db)):
+    user_data = await validate_refresh_token(aconn, hash_token(refresh_token))
+    if not refresh_token or not user_data:
         raise HTTPException(
             status_code=401,
             detail= "Missing or Broken refresh token cookie."
         )
 
-    username = refresh_tokens[refresh_token]
-    role = MOCK_DB[username]['role']
+    username = user_data['username']
+    role = user_data['role']
     access_token = get_access_token(username, role)
       
     return{
