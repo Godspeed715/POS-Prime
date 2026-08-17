@@ -54,52 +54,28 @@ async def perform_transaction(aconn: AsyncConnection, products: list[dict], tota
         # Used aconn.transaction() to implement automatic rollback and commits
         async with aconn.transaction():
             async with aconn.cursor(row_factory=dict_row) as cur:
+                await cur.execute('''
+                    INSERT INTO transactions(user_id, total_amount)
+                    VALUES (%s, %s) RETURNING id
+                    ''', ('01a00add-2b6b-7b48-ac33-4c86faa8fbd9', total_amount))
+                
+                transaction_id = (await cur.fetchone())['id']
 
-                transaction_id = await add_transaction(aconn, total_amount)
+                products_values = [(transaction_id, product['id'], product['quantity'], product['price']) for product in products]
 
-                # Use list comprehension to arrange products into a format list[tuple]
-                products = [(transaction_id, product['id'], product['quantity'], product['price']) for product in products]
+                await cur.executemany('''
+                    INSERT INTO transaction_items(transaction_id, product_id, quantity, recorded_price)
+                    VALUES (%s, %s, %s, %s)
+                    ''', products_values)
+                
+                products_values = [(product['quantity'], product['id']) for product in products]
 
-                await add_transaction_items(aconn, products)
-
+                await cur.executemany('''
+                    UPDATE products
+                    SET stock_quantity = stock_quantity - %s
+                    WHERE id = %s
+                    ''', products_values)
+                
                 return{'success': True}
     except Error as e:
         return {'success': False}
-
-async def add_transaction_items(aconn: AsyncConnection, products: list[tuple]):
-    '''Inserts individual items in a transaction to the database'''
-    async with aconn.cursor(row_factory=dict_row) as cur:
-        try:
-            await cur.executemany('''
-            INSERT INTO transaction_items(transaction_id, product_id, quantity, recorded_price)
-            VALUES (%s, %s, %s, %s)
-
-            ''', products)
-        except Error as e:
-            raise Error('Adding transaction items failed') from e
-
-async def add_transaction(aconn: AsyncConnection, total_amount: int):
-    '''Inserts a transaction to the database'''
-    try:
-        async with aconn.cursor(row_factory=dict_row) as cur:
-            await cur.execute('''
-                    INSERT INTO transactions(user_id, total_amount)
-                    VALUES (%s, %s) RETURNING id
-                    ''', (1, total_amount))
-            transaction_data = await cur.fetchone()
-            return transaction_data['id']
-    except Error as e:
-            raise Error('Adding transaction failed') from e
-
-# single_query = """
-# WITH inserted_transaction AS (
-#     INSERT INTO transactions (user_id, status) 
-#     VALUES (%s, 'pending') 
-#     RETURNING id
-# )
-# INSERT INTO products (transaction_id, name, price)
-# SELECT inserted_transaction.id, unnested.name, unnested.price
-# FROM inserted_transaction
-# CROSS JOIN UNNEST(%s::text[], %s::numeric[]) AS unnested(name, price)
-# RETURNING id, transaction_id;
-# """
