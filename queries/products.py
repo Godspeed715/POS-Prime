@@ -26,7 +26,7 @@ async def fetch_all_products(aconn: AsyncConnection, business_id: str) -> list:
             SELECT m.id AS master_product_id, b.id AS business_product_id, m.name, m.category, b.price, m.barcode, b.custom_name, b.custom_category 
             FROM business_products b
             JOIN master_products m
-            ON (b.master_product_id=m.id)
+            ON (b.master_products_id=m.id)
             WHERE b.is_active=TRUE AND b.business_id = %s
         ''', (business_id,))
 
@@ -41,7 +41,7 @@ async def fetch_all_products_with_stock(aconn: AsyncConnection, business_id: str
             SELECT m.id AS id, b.id AS business_product_id, m.name, m.category, b.price, m.barcode, b.custom_name, b.custom_category, b.stock_quantity AS stock 
             FROM business_products b
             JOIN master_products m
-            ON (b.master_product_id=m.id)
+            ON (b.master_products_id=m.id)
             WHERE b.is_active=TRUE AND b.business_id = %s
         ''', (business_id,))
 
