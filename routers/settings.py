@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from utils.auth import get_current_user
+from core.dependencies import get_current_user
 from core.database import get_db
 from queries.settings import fetch_business_code
 
