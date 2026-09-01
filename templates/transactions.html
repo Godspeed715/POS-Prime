@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions — Kitchen &amp; Counter{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', path='stock.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='transactions.css') }}">
+{% endblock %}
+
+{% block content %}
+<!--
+    Visible to every role (cashier, admin, super_admin) for now — no
+    filtering by date/cashier/business either, that's an open decision,
+    not built yet. transactions.js calls Auth.requireAuth() with no role
+    restriction, same pattern as pos.html.
+-->
+<section class="transactions-section" id="top">
+    <header class="transactions-header">
+        <h2 class="breadcrumb">Sales</h2>
+        <div class="header-controls">
+            <h1>Transactions</h1>
+            <div class="search-bar">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="transactions-search" placeholder="Search by cashier...">
+            </div>
+        </div>
+        <div class="live-indicator" id="live-indicator" title="Refreshed automatically every 5 minutes, or immediately when you switch back to this tab">
+            <span class="dot"></span><span id="live-indicator-text">Loading…</span>
+        </div>
+    </header>
+
+    <div class="table-wrap">
+        <table class="stock-table">
+            <thead>
+                <tr>
+                    <th>Transaction</th>
+                    <th>Cashier</th>
+                    <th>Total</th>
+                    <th>Date &amp; time</th>
+                </tr>
+            </thead>
+            <tbody id="transactions-table-body">
+                <!-- Populated by transactions.js -->
+            </tbody>
+        </table>
+        <div class="empty-state" id="transactions-empty-state" style="display:none;">
+            <i class="fa-solid fa-receipt"></i>No transactions yet.
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='auth.js') }}"></script>
+<script src="{{ url_for('static', path='polling.js') }}"></script>
+<script src="{{ url_for('static', path='transactions.js') }}" defer></script>
+{% endblock %}

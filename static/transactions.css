@@ -1,0 +1,11 @@
+/* ==========================================================================
+   TRANSACTIONS PAGE
+   Reuses stock.css (loaded first) for the table/search-bar/empty-state
+   shapes. Only transactions-specific pieces live here.
+   ========================================================================== */
+
+.transactions-section { flex: 1; padding: 32px; overflow-y: auto; }
+.transactions-header .header-controls { margin-bottom: 4px; }
+
+.transaction-id { color: var(--text-muted); font-size: 12px; }
+.transaction-total { font-weight: 700; }

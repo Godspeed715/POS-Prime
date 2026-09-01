@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Add Business or Employee — Kitchen &amp; Counter{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', path='stock.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='signup.css') }}">
+{% endblock %}
+
+{% block content %}
+<!--
+    super_admin only — signup.js calls Auth.requireAuth(['super_admin']) on
+    load and redirects anyone else away before this renders meaningfully.
+
+    Gated behind super_admin while the platform is in testing. This page
+    is expected to open up to public self-signup later — when that
+    happens, this template/script will need real validation, rate
+    limiting, and probably a re-think of the copy below; none of that is
+    built in yet since it's not needed for a super_admin-only console.
+-->
+<section class="signup-section" id="top">
+    <header class="signup-header">
+        <h2 class="breadcrumb">Platform</h2>
+        <h1>Add Business or Employee</h1>
+        <p class="signup-subtitle">Create a new business and its first admin, or add an employee to a business that already exists.</p>
+    </header>
+
+    <div class="signup-card">
+        <div class="reconcile-method-tabs" id="signup-type-tabs">
+            <button type="button" class="image-tab active" data-signup-type="owner">Business owner</button>
+            <button type="button" class="image-tab" data-signup-type="employee">Employee</button>
+        </div>
+
+        <form id="signup-form" novalidate>
+            <!-- OWNER FIELDS -->
+            <div id="owner-fields">
+                <label for="business-name">Business name</label>
+                <input type="text" id="business-name" placeholder="e.g. Mama Ngozi Store" autocomplete="off">
+                <p class="field-hint">A login business code will be generated automatically from this name.</p>
+            </div>
+
+            <!-- EMPLOYEE FIELDS -->
+            <div id="employee-fields" style="display:none;">
+                <label for="employee-business-code">Business code</label>
+                <input type="text" id="employee-business-code" placeholder="e.g. mama47" autocomplete="off">
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="signup-username">Username</label>
+                    <input type="text" id="signup-username" autocomplete="off" required>
+                </div>
+                <div>
+                    <label for="signup-email">
+                        Email <span id="email-optional-tag" style="font-weight:400;color:var(--text-muted);">(optional)</span>
+                    </label>
+                    <input type="email" id="signup-email" autocomplete="off">
+                </div>
+            </div>
+
+            <label for="signup-password">Temporary password</label>
+            <input type="password" id="signup-password" autocomplete="new-password" required>
+            <p class="field-hint">Minimum 8 characters. Share this with them directly — it isn't emailed automatically yet.</p>
+
+            <div class="modal-error" id="signup-form-error" role="alert" aria-live="polite"></div>
+
+            <div id="signup-result" class="signup-result" style="display:none;"></div>
+
+            <div class="modal-actions">
+                <button type="submit" class="primary-btn" id="signup-submit-btn">Create account</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='auth.js') }}"></script>
+<script src="{{ url_for('static', path='signup.js') }}" defer></script>
+{% endblock %}
