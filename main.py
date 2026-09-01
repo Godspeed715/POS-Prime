@@ -1,8 +1,9 @@
 from fastapi import FastAPI
-from pages.routers import router as pages_router
-from products.routers import router as products_router
+from routers.pages import router as pages_router
+from routers.products import router as products_router
 from core.database import pool
-from auth.routers import router as auth_router
+from routers.auth import router as auth_router
+from routers.settings import router as settings_router
 from contextlib import asynccontextmanager
 
 # Async Context Manager to startup and close connection pool
@@ -21,3 +22,4 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(products_router)
 app.include_router(pages_router)
 app.include_router(auth_router)
+app.include_router(settings_router)
