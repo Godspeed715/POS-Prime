@@ -134,6 +134,10 @@
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-row > div { display: flex; flex-direction: column; }
 
+.barcode-field-row { display: flex; gap: 8px; align-items: center; }
+.barcode-field-row input { flex: 1; }
+.barcode-field-row .icon-btn { width: 40px; height: 40px; font-size: 13px; flex-shrink: 0; }
+
 /* Generic pill-toggle-tab component — despite the name, also reused by
    reconcile.css for the "match existing / create new" method toggle. */
 .image-tab {

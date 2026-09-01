@@ -3,16 +3,19 @@
 
    ARCHITECTURE SUMMARY
    ---------------------------------------------------------------------------
-   1. CATALOG (id/qr_code/name/price/category) — fetched from /api/products,
+   1. CATALOG (name/price/category/barcode) — fetched from /api/products,
       cached in sessionStorage for 3 minutes, silently refreshed in the
       background after that. Cheap to cache because it rarely changes.
-      Products have no `image` column — every product's visual is derived
-      from its category via CategoryIcons (category-icons.js), not stored
-      per-product. Load category-icons.js before this file.
+      Rendered as a plain text-based list — no product images anywhere in
+      this app, category-icons.js is no longer loaded on this page.
 
-   2. STOCK — fetched from /api/stock on every page load, AND polled every
-      15 seconds after that. Never cached, because stock is the field that
-      actually needs to be accurate.
+   2. STOCK — fetched from /api/stock on load, then polled every 5 minutes
+      via the shared Polling module (polling.js — pauses while the tab is
+      hidden, fetches immediately on refocus). Never cached, because stock
+      is the field that actually needs to be accurate. The 5-minute
+      interval is a UX/DB-load tradeoff, not a correctness guarantee —
+      checkout (below) does its own hard re-check regardless of what this
+      poll last saw. Load polling.js before this file.
 
    3. CART / SEARCH / CATEGORY FILTERING — 100% frontend. Once the catalog
       and stock are in memory (the `catalog` array below), none of this
@@ -27,33 +30,29 @@
       through Auth.authFetch() so the access token is attached and silently
       refreshed on expiry. Requires auth.js loaded before this file.
 
-   BACKEND RESPONSE SHAPES EXPECTED
+   BACKEND RESPONSE SHAPES EXPECTED (see Backend_Requirements.md §4 for the
+   authoritative contract — this is the internal shape AFTER the mapping
+   fetchCatalogFromServer() does, not the raw API response)
    ---------------------------------------------------------------------------
-       GET /api/products -> [{ id, qr_code, name, price, category }, ...]
-       GET /api/stock     -> { "1": 12, "2": 8, ... }  (product id -> qty)
+       GET /api/products (raw) -> [{ business_product_id, master_product_id,
+                                      name, category, price, barcode }, ...]
+       fetchCatalogFromServer() maps this to internal:
+                                   [{ id, masterProductId, name, category,
+                                      price, barcode }, ...]
+       GET /api/stock -> { "1": 12, "2": 8, ... }  (business_product_id -> qty,
+                           keys line up with the mapped `id` above)
        POST /api/checkout { cart, promo } -> 200 on success
 
-   Everything else (rendering, cart, checkout) already expects exactly that
-   shape and needs no further changes.
+   Everything else (rendering, cart, checkout) works off the mapped internal
+   shape and needs no further changes if the raw API shape changes — only
+   fetchCatalogFromServer()'s mapping does.
    ========================================================================== */
 
 (function () {
     "use strict";
 
-    /* ---------------------------------------------------------------------
-       THEME (light default, toggled from the header switch)
-    --------------------------------------------------------------------- */
-    const root = document.documentElement;
-    const themeToggle = document.getElementById('theme-toggle');
-    const themeIcon = document.getElementById('theme-icon');
-
-    function setTheme(theme) {
-        root.setAttribute('data-theme', theme);
-        themeIcon.className = theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-    }
-    themeToggle.addEventListener('click', () => {
-        setTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-    });
+    // Theme toggle lives in theme.js now (shared across every page via
+    // base.html) — no per-page theme logic needed here anymore.
 
     /* ---------------------------------------------------------------------
        TOAST
@@ -87,15 +86,25 @@
     --------------------------------------------------------------------- */
     function fakeDelay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+    // GET /api/products returns the resolved master+business view described
+    // in Backend_Requirements.md §4 — business_product_id, master_product_id,
+    // name/category (already resolved: custom_* falls back to the master
+    // value server-side, this file never needs to know that happened),
+    // price, barcode. Mapped here to the internal shape the rest of this
+    // file uses, so a field rename on the backend only ever touches this
+    // one function.
     async function fetchCatalogFromServer() {
         const res = await Auth.authFetch('/api/products');
         if (!res.ok) throw new Error('Failed to load products');
         const data = await res.json();
-
-        // No `image` column on products — every item's visual comes from
-        // its category via the shared CategoryIcons lookup.
-        data.forEach(p => { p.image = CategoryIcons.get(p.category); });
-        return data;
+        return data.map(p => ({
+            id: p.business_product_id,
+            masterProductId: p.master_product_id,
+            name: p.name,
+            category: p.category,
+            price: p.price,
+            barcode: p.barcode,
+        }));
     }
 
     async function fetchStockFromServer() {
@@ -108,8 +117,8 @@
        CATALOG CACHE — 3 minute TTL, sessionStorage-backed so it survives a
        reload within the same tab/shift
     --------------------------------------------------------------------- */
-    const CATALOG_TTL_MS = 3 * 60 * 1000; // 3 minutes
-    const STOCK_POLL_MS = 15 * 1000;      // 15 seconds
+    const CATALOG_TTL_MS = 3 * 60 * 1000;  // 3 minutes
+    const STOCK_POLL_MS = 5 * 60 * 1000;   // 5 minutes — see polling.js header for why this isn't shorter
 
     function readCatalogCache() {
         const raw = sessionStorage.getItem('pos_catalog_cache_v1');
@@ -123,7 +132,7 @@
     /* ---------------------------------------------------------------------
        STATE
     --------------------------------------------------------------------- */
-    let catalog = [];          // merged { id, qr_code, name, price, category, image, stock }
+    let catalog = [];          // merged { id, masterProductId, name, price, category, barcode, stock }
     let CATEGORIES = ['All'];
     let activeCategory = 'All';
     let searchTerm = '';
@@ -169,12 +178,18 @@
         renderCategories();
         renderProducts();
 
-        // Stock is never cached — always fetched live, on every single load.
-        await refreshStock();
-
-        // Background loops
+        // Background loops. Stock is never cached and always fetched live —
+        // Polling.start() fires an immediate fetch on start (see
+        // polling.js), so no separate initial refreshStock() call is
+        // needed here; this both loads the first stock snapshot and kicks
+        // off the recurring 5-minute poll in one step.
         setInterval(refreshCatalogInBackground, CATALOG_TTL_MS); // re-check menu every 3 min
-        setInterval(refreshStock, STOCK_POLL_MS);                 // live stock every 15s
+        Polling.start({
+            url: '/api/stock',
+            intervalMs: STOCK_POLL_MS,
+            fetcher: Auth.authFetch,
+            onData: applyStockData,
+        });
     }
 
     async function refreshCatalogInBackground() {
@@ -192,6 +207,14 @@
     async function refreshStock() {
         liveIndicatorText.textContent = 'Syncing stock…';
         const stockMap = await fetchStockFromServer();
+        applyStockData(stockMap);
+    }
+
+    // Shared by refreshStock() (used for the initial load and the hard
+    // re-check immediately before checkout) and Polling's onData callback
+    // (the background 5-minute poll) — one place that merges a fresh
+    // stock map into the in-memory catalog and re-renders.
+    function applyStockData(stockMap) {
         catalog.forEach(p => { p.stock = stockMap[p.id] ?? p.stock ?? 0; });
         renderProducts();
         reconcileCartWithStock();
@@ -254,20 +277,18 @@
             const soldOut = stockKnown && product.stock <= 0;
             const low = stockKnown && product.stock > 0 && product.stock <= 5;
 
-            const card = document.createElement('div');
-            card.className = 'product-card' + (soldOut ? ' sold-out' : '');
-            card.innerHTML = `
-                <div class="product-image"><img src="${product.image}" alt="${product.name}"></div>
-                <div class="product-info">
+            const row = document.createElement('div');
+            row.className = 'product-row' + (soldOut ? ' sold-out' : '');
+            row.innerHTML = `
+                <div class="product-row-main">
                     <h3>${product.name}</h3>
-                    <div class="stock-note${low ? ' low' : ''}">${!stockKnown ? '' : soldOut ? 'Sold out' : low ? product.stock + ' left' : ''}</div>
-                    <div class="product-bottom">
-                        <span class="price">${formatNaira(product.price)}</span>
-                        <button class="add-btn" ${soldOut ? 'disabled' : ''} aria-label="Add ${product.name} to order"><i class="fa-solid fa-plus"></i></button>
-                    </div>
-                </div>`;
-            card.querySelector('.add-btn').addEventListener('click', () => addToCart(product.id, product.name, product.price, product.image));
-            productGrid.appendChild(card);
+                    <span class="product-row-category">${product.category}</span>
+                </div>
+                <div class="stock-note${low ? ' low' : ''}">${!stockKnown ? '' : soldOut ? 'Sold out' : low ? product.stock + ' left' : ''}</div>
+                <span class="price">${formatNaira(product.price)}</span>
+                <button class="add-btn" ${soldOut ? 'disabled' : ''} aria-label="Add ${product.name} to order"><i class="fa-solid fa-plus"></i></button>`;
+            row.querySelector('.add-btn').addEventListener('click', () => addToCart(product.id, product.name, product.price));
+            productGrid.appendChild(row);
         });
     }
 
@@ -291,7 +312,7 @@
         return catalog.find(p => String(p.id) === String(id));
     }
 
-    function addToCart(id, name, price, image) {
+    function addToCart(id, name, price) {
         const prod = findCatalogItem(id);
         const existing = cart.find(item => String(item.id) === String(id));
         const nextQty = (existing ? existing.quantity : 0) + 1;
@@ -304,7 +325,7 @@
         }
 
         if (existing) existing.quantity += 1;
-        else cart.push({ id, name, price, image, quantity: 1 });
+        else cart.push({ id, name, price, quantity: 1 });
 
         renderCart();
         showToast(`Added ${name} to order`);
@@ -373,7 +394,6 @@
             const row = document.createElement('div');
             row.className = 'cart-item';
             row.innerHTML = `
-                <img src="${item.image}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-details">
                     <h4>${item.name}</h4>
                     <span class="cart-item-price">${formatNaira(item.price)}</span>
@@ -433,7 +453,7 @@
         const priceStr = prompt('Enter price (₦):');
         const price = parseFloat(priceStr);
         if (isNaN(price) || price < 0) { showToast('Invalid price entered.'); return; }
-        addToCart('custom_' + Date.now(), name, price, CategoryIcons.getCustom());
+        addToCart('custom_' + Date.now(), name, price);
     });
 
     /* ---------------------------------------------------------------------
@@ -487,11 +507,11 @@
     }
 
     /* ---------------------------------------------------------------------
-       BARCODE SCANNER — matches against products.qr_code (the schema's
-       column name; functionally this is a barcode, not a QR code — the
-       library is configured below to recognize 1D retail barcode formats,
-       not QR codes). Nullable, so not every product will have one;
-       unmatched scans just show "no match".
+       BARCODE SCANNER — matches against catalog[].barcode (mapped from the
+       API's `barcode` field — see fetchCatalogFromServer(), and the
+       master_products.barcode column in Backend_Requirements.md §2.3).
+       Nullable, so not every product will have one; unmatched scans just
+       show "no match".
     --------------------------------------------------------------------- */
     const barcodeContainer = document.getElementById('barcode-reader-container');
     const barcodeStatus = document.getElementById('barcode-status');
@@ -513,33 +533,54 @@
     ] : undefined;
 
     function stopScanner() {
-        if (scanner) { scanner.clear().catch(() => {}); scanner = null; }
+        if (scanner) {
+            scanner.stop().then(() => scanner.clear()).catch(() => {});
+            scanner = null;
+        }
         barcodeContainer.style.display = 'none';
     }
 
     function onScanSuccess(decodedText) {
         stopScanner();
-        const product = catalog.find(p => p.qr_code === decodedText || String(p.id) === decodedText);
-        if (product) addToCart(product.id, product.name, product.price, product.image);
+        const product = catalog.find(p => p.barcode === decodedText || String(p.id) === decodedText);
+        if (product) addToCart(product.id, product.name, product.price);
         else showToast('No product matches that code.');
     }
 
-    startBtn.addEventListener('click', () => {
-        if (typeof Html5QrcodeScanner === 'undefined') { showToast('Barcode scanner library failed to load — check your connection.'); return; }
+    // Heuristic device check — good enough to pick a sensible default
+    // camera; browsers don't expose a reliable "is this a phone" API.
+    // Mobile gets the back (environment-facing) camera since that's what
+    // you point at a barcode; desktop gets the front-facing webcam since
+    // that's the only camera most laptops/desktops have.
+    function isMobileDevice() {
+        return /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent);
+    }
+
+    async function startScanner() {
+        if (typeof Html5Qrcode === 'undefined') { showToast('Barcode scanner library failed to load — check your connection.'); return; }
         barcodeContainer.style.display = 'block';
         barcodeStatus.textContent = 'Point the camera at a product barcode.';
+
+        scanner = new Html5Qrcode('barcode-reader', {
+            ...(BARCODE_FORMATS ? { formatsToSupport: BARCODE_FORMATS } : {}),
+            verbose: false,
+        });
+
+        const facingMode = isMobileDevice() ? 'environment' : 'user';
+
         try {
-            scanner = new Html5QrcodeScanner('barcode-reader', {
-                fps: 10,
-                qrbox: { width: 280, height: 120 }, // wide rectangle suits 1D barcodes better than a square box
-                ...(BARCODE_FORMATS ? { formatsToSupport: BARCODE_FORMATS } : {}),
-            }, false);
-            scanner.render(onScanSuccess, () => { /* ignore background scan noise */ });
+            // No qrbox passed — the whole video frame is the scan area, so
+            // there's no manual selection box for the cashier to line
+            // anything up against. fps only; the library still runs its
+            // own detection loop across the full frame each tick.
+            await scanner.start({ facingMode }, { fps: 10 }, onScanSuccess, () => { /* ignore background scan noise */ });
         } catch (err) {
             barcodeStatus.textContent = 'Camera unavailable — check permissions or try a different device.';
             console.error(err);
         }
-    });
+    }
+
+    startBtn.addEventListener('click', startScanner);
     closeBtn.addEventListener('click', stopScanner);
 
     /* ---------------------------------------------------------------------

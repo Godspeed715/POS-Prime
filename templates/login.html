@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in — Kitchen &amp; Counter</title>
 
+    <!-- Same pre-paint theme guard as base.html — kept in sync manually
+         since this page doesn't extend base.html. See theme.js for the
+         toggle logic (this page has no toggle button, just respects
+         whatever was last chosen elsewhere in the app). -->
+    <script>
+        (function () {
+            var saved = localStorage.getItem('kc_theme');
+            if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        })();
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -18,6 +29,9 @@
         <p class="login-subtitle">Sign in to continue</p>
 
         <form id="login-form" novalidate>
+            <label for="business-code">Business code</label>
+            <input type="text" id="business-code" name="business-code" autocomplete="organization" required>
+
             <label for="username">Username</label>
             <input type="text" id="username" name="username" autocomplete="username" required>
 

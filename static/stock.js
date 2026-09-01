@@ -13,8 +13,24 @@
 
    The "Barcode" field maps to the schema's `qr_code` column — that column
    name is a holdover from when this was designed as QR scanning; it's
-   functionally a barcode field now (see the Html5QrcodeScanner config
-   below, restricted to EAN/UPC/CODE-128/etc formats, not QR_CODE).
+   functionally a barcode field now (see the BARCODE_FORMATS config below,
+   restricted to EAN/UPC/CODE-128/etc formats, not QR_CODE).
+
+   BARCODE LOOKUP (see lookupBarcode() below) — every barcode, whether
+   typed manually or captured by either scanner entry point, is checked in
+   two stages:
+     1. Does THIS business already sell something with this barcode? If so,
+        open it in edit mode rather than risking a duplicate.
+     2. If not, does the barcode exist on the shared master catalog (i.e.
+        some OTHER business already has a product with this barcode)? If
+        so, prefill name + category from that master record — editable,
+        not locked, since a business should always be free to relabel what
+        they see. This is the master_products / business_products split
+        described in Backend_Requirements.md; MOCK_MASTER_CATALOG below
+        stands in for a GET/POST to /api/products/check-barcode.
+     3. No match anywhere — treated as a brand-new product; saving it
+        creates both a master row and a business row together per that
+        same doc.
    ========================================================================== */
 
 (function () {
@@ -31,7 +47,16 @@
         Auth.applyRoleVisibility();
 
         populateCategorySelects();
-        renderTable();
+        await renderTable();
+
+        // Live stock updates — same /api/stock endpoint and shared module
+        // POS uses, pauses on hidden tabs, fetches immediately on refocus.
+        Polling.start({
+            url: '/api/stock',
+            intervalMs: STOCK_POLL_MS,
+            fetcher: Auth.authFetch,
+            onData: applyStockPoll,
+        });
     }
 
     /* ---------------------------------------------------------------------
@@ -58,15 +83,15 @@
        boundary if your API returns the raw column name).
     ======================================================================= */
     let MOCK_PRODUCTS = [
-        { id: 1, name: 'Rice (50kg bag)',        price: 65000, category: 'Food and Dry Staples',          stock: 12, barcode: '' },
-        { id: 2, name: 'Groundnut Oil (5L)',      price: 8500,  category: 'Oils, Spices, and Condiments',  stock: 20, barcode: '' },
-        { id: 3, name: 'Maggi Cubes (pack)',      price: 500,   category: 'Oils, Spices, and Condiments',  stock: 60, barcode: '' },
-        { id: 4, name: 'Coca-Cola (35cl)',        price: 400,   category: 'Beverages and Snacks',          stock: 48, barcode: '' },
-        { id: 5, name: 'Indomie (carton)',        price: 5200,  category: 'Food and Dry Staples',          stock: 15, barcode: '' },
-        { id: 6, name: 'Dettol Soap',             price: 700,   category: 'Toiletries and Household Care', stock: 30, barcode: '' },
-        { id: 7, name: 'Closeup Toothpaste',      price: 900,   category: 'Toiletries and Household Care', stock: 22, barcode: '' },
-        { id: 8, name: 'Vaseline Lotion',         price: 2200,  category: 'Cosmetics and Grooming',        stock: 3,  barcode: '' },
-        { id: 9, name: 'Phone Charger (Type-C)',  price: 3500,  category: 'Electronics',                   stock: 10, barcode: '' }
+        { id: 1, name: 'Rice (50kg bag)',        price: 65000, category: 'Food and Dry Staples',          stock: 12, qr_code: '' },
+        { id: 2, name: 'Groundnut Oil (5L)',      price: 8500,  category: 'Oils, Spices, and Condiments',  stock: 20, qr_code: '' },
+        { id: 3, name: 'Maggi Cubes (pack)',      price: 500,   category: 'Oils, Spices, and Condiments',  stock: 60, qr_code: '' },
+        { id: 4, name: 'Coca-Cola (35cl)',        price: 400,   category: 'Beverages and Snacks',          stock: 48, qr_code: '' },
+        { id: 5, name: 'Indomie (carton)',        price: 5200,  category: 'Food and Dry Staples',          stock: 15, qr_code: '' },
+        { id: 6, name: 'Dettol Soap',             price: 700,   category: 'Toiletries and Household Care', stock: 30, qr_code: '' },
+        { id: 7, name: 'Closeup Toothpaste',      price: 900,   category: 'Toiletries and Household Care', stock: 22, qr_code: '' },
+        { id: 8, name: 'Vaseline Lotion',         price: 2200,  category: 'Cosmetics and Grooming',        stock: 3,  qr_code: '' },
+        { id: 9, name: 'Phone Charger (Type-C)',  price: 3500,  category: 'Electronics',                   stock: 10, qr_code: '' }
     ];
     let nextId = 100;
 
@@ -74,6 +99,48 @@
         // REAL VERSION: 
         const res = await Auth.authFetch('/api/products_with_stocks'); return res.json();
         // return MOCK_PRODUCTS;
+    }
+
+    /* =======================================================================
+       MOCK MASTER CATALOG — stands in for the shared master_products table
+       described in Backend_Requirements.md. Represents barcodes that exist
+       because SOME business (not necessarily this one) already has a
+       product with that code. Delete once /api/products/check-barcode
+       exists for real.
+    ======================================================================= */
+    const MOCK_MASTER_CATALOG = [
+        { master_product_id: 501, barcode: '6009710000015', name: 'Milo (500g tin)', category: 'Beverages and Snacks' },
+        { master_product_id: 502, barcode: '6001087340018', name: 'Omo Detergent (900g)', category: 'Toiletries and Household Care' },
+        { master_product_id: 503, barcode: '6009184001234', name: 'Peak Milk (Evaporated, 170g)', category: 'Food and Dry Staples' },
+    ];
+
+    /**
+     * Two-stage barcode lookup, run on every barcode this page sees —
+     * whether typed by hand or captured by either scanner entry point.
+     * See file header for the full behavior this drives.
+     *
+     * Returns one of:
+     *   { type: 'own',    product }               — this business already has it
+     *   { type: 'master', name, category }         — another business already has it
+     *   { type: 'none' }                            — brand new, nobody has it
+     */
+    async function lookupBarcode(barcode) {
+        // const ownMatch = MOCK_PRODUCTS.find(p => p.barcode === barcode);
+        // if (ownMatch) return { type: 'own', product: ownMatch };
+
+        // REAL VERSION:
+          const res = await Auth.authFetch('/api/products/check-barcode', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ barcode }),
+          });
+          const data = await res.json();
+          if (data.found) return { type: 'master', name: data.name, category: data.category };
+          return { type: 'none' };
+        const masterMatch = MOCK_MASTER_CATALOG.find(m => m.barcode === barcode);
+        if (masterMatch) return { type: 'master', name: masterMatch.name, category: masterMatch.category };
+
+        return { type: 'none' };
     }
 
     /* ---------------------------------------------------------------------
@@ -88,11 +155,16 @@
     const tableBody = document.getElementById('stock-table-body');
     const emptyState = document.getElementById('stock-empty-state');
 
+    const STOCK_POLL_MS = 5 * 60 * 1000; // 5 minutes — see polling.js header for why this isn't shorter
+
+    let lastProductsList = []; // populated by renderTable(), read by applyStockPoll()
+
     async function renderTable() {
         const term = searchTerm.trim().toLowerCase();
         const products = await fetchProductsFromServer();
+        lastProductsList = products;
         const filtered = products.filter(p => {
-            const matchesTerm = !term || p.name.toLowerCase().includes(term) || (p.qr_code || '').toLowerCase().includes(term);
+            const matchesTerm = !term || p.name.toLowerCase().includes(term) || (p.barcode || '').toLowerCase().includes(term);
             const matchesCategory = categoryFilter === 'All' || p.category === categoryFilter;
             return matchesTerm && matchesCategory;
         });
@@ -104,13 +176,14 @@
             const low = p.stock > 0 && p.stock <= 5;
             const zero = p.stock === 0;
             const tr = document.createElement('tr');
+            tr.dataset.productId = p.id;
             tr.innerHTML = `
                 <td><img class="stock-thumb" src="${CategoryIcons.get(p.category)}" alt="${p.category}"></td>
                 <td><div class="stock-name">${p.name}</div></td>
                 <td>${p.category}</td>
                 <td>${formatNaira(p.price)}</td>
                 <td><span class="stock-qty ${zero ? 'zero' : low ? 'low' : ''}">${p.stock}</span></td>
-                <td class="stock-barcode">${p.qr_code || '—'}</td>
+                <td class="stock-barcode">${p.barcode || '—'}</td>
                 <td>
                     <div class="row-actions">
                         <button class="edit-btn" aria-label="Edit ${p.name}"><i class="fa-solid fa-pen"></i></button>
@@ -120,6 +193,28 @@
             tr.querySelector('.edit-btn').addEventListener('click', () => openProductModal(p));
             tr.querySelector('.remove-btn').addEventListener('click', () => openRemoveModal(p));
             tableBody.appendChild(tr);
+        });
+    }
+
+    // Called on every Polling tick (see init() below). Deliberately does
+    // NOT re-run renderTable()/re-fetch the whole product list — that
+    // would mean this "lightweight" 5-minute poll hitting the same heavy
+    // endpoint as a full CRUD refresh. Instead it patches just the
+    // quantity cell of whatever's currently rendered, using the same
+    // /api/stock id->qty map POS polls.
+    function applyStockPoll(stockMap) {
+        lastProductsList.forEach(p => { p.stock = stockMap[p.id] ?? p.stock; });
+        MOCK_PRODUCTS.forEach(p => { p.stock = stockMap[p.id] ?? p.stock; });
+
+        tableBody.querySelectorAll('tr[data-product-id]').forEach(tr => {
+            const product = lastProductsList.find(p => String(p.id) === tr.dataset.productId);
+            const qtyEl = tr.querySelector('.stock-qty');
+            if (!product || !qtyEl) return;
+
+            const low = product.stock > 0 && product.stock <= 5;
+            const zero = product.stock === 0;
+            qtyEl.textContent = product.stock;
+            qtyEl.className = 'stock-qty' + (zero ? ' zero' : low ? ' low' : '');
         });
     }
 
@@ -152,12 +247,12 @@
     }
     categorySelect.addEventListener('change', updateIconPreview);
 
-    function openProductModal(product = null, prefillBarcode = null) {
+    function openProductModal(product = null, prefillBarcode = null, prefillFromMaster = null) {
         editingId = product ? product.id : null;
         document.getElementById('product-modal-title').textContent = product ? 'Edit Product' : 'Add Product';
         document.getElementById('product-id').value = product ? product.id : '';
-        document.getElementById('product-name').value = product ? product.name : '';
-        document.getElementById('product-category').value = product ? product.category : CategoryIcons.list()[0];
+        document.getElementById('product-name').value = product ? product.name : (prefillFromMaster ? prefillFromMaster.name : '');
+        document.getElementById('product-category').value = product ? product.category : (prefillFromMaster ? prefillFromMaster.category : CategoryIcons.list()[0]);
         document.getElementById('product-barcode').value = product ? (product.barcode || '') : (prefillBarcode || '');
         document.getElementById('product-price').value = product ? product.price : '';
         document.getElementById('product-stock').value = product ? product.stock : '';
@@ -205,41 +300,128 @@
     ] : undefined;
 
     function stopScanner() {
-        if (scanner) { scanner.clear().catch(() => {}); scanner = null; }
+        if (scanner) {
+            scanner.stop().then(() => scanner.clear()).catch(() => {});
+            scanner = null;
+        }
         barcodeContainer.style.display = 'none';
     }
 
-    function onBarcodeScanSuccess(decodedText) {
+    async function onBarcodeScanSuccess(decodedText) {
         stopScanner();
-
-        const existing = MOCK_PRODUCTS.find(p => p.qr_code === decodedText);
-        if (existing) {
-            showToast(`This barcode is already linked to "${existing.name}" — editing it.`);
-            openProductModal(existing);
-            return;
-        }
-
-        showToast('Barcode captured — fill in the rest.');
-        openProductModal(null, decodedText);
+        await handleBarcodeResolved(decodedText);
     }
 
-    addBarcodeBtn.addEventListener('click', () => {
-        if (typeof Html5QrcodeScanner === 'undefined') { showToast('Barcode scanner library failed to load — check your connection.'); return; }
+    // Shared by both scan entry points AND manual typing (see the blur
+    // listener on the barcode field below) — one place that decides what
+    // happens once we know a barcode value, per the two-stage lookup
+    // described in the file header.
+    async function handleBarcodeResolved(barcode) {
+        const result = await lookupBarcode(barcode);
+
+        if (result.type === 'own') {
+            showToast(`This barcode is already linked to "${result.product.name}" — editing it.`);
+            openProductModal(result.product);
+        } else if (result.type === 'master') {
+            showToast('Barcode recognized from another business\u2019s catalog — name and category prefilled, edit as needed.');
+            openProductModal(null, barcode, { name: result.name, category: result.category });
+        } else {
+            showToast('New barcode — fill in the rest.');
+            openProductModal(null, barcode);
+        }
+    }
+
+    // Same device heuristic as script.js (POS) — back camera on mobile,
+    // front-facing webcam on desktop. No manual scan-region box; the
+    // whole video frame is scanned.
+    function isMobileDevice() {
+        return /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent);
+    }
+
+    async function startScanner() {
+        if (typeof Html5Qrcode === 'undefined') { showToast('Barcode scanner library failed to load — check your connection.'); return; }
         barcodeContainer.style.display = 'block';
         barcodeStatus.textContent = 'Point the camera at the product\u2019s barcode.';
+
+        scanner = new Html5Qrcode('barcode-reader', {
+            ...(BARCODE_FORMATS ? { formatsToSupport: BARCODE_FORMATS } : {}),
+            verbose: false,
+        });
+
+        const facingMode = isMobileDevice() ? 'environment' : 'user';
+
         try {
-            scanner = new Html5QrcodeScanner('barcode-reader', {
-                fps: 10,
-                qrbox: { width: 280, height: 120 }, // wide rectangle suits 1D barcodes better than a square box
-                ...(BARCODE_FORMATS ? { formatsToSupport: BARCODE_FORMATS } : {}),
-            }, false);
-            scanner.render(onBarcodeScanSuccess, () => { /* ignore background scan noise */ });
+            await scanner.start({ facingMode }, { fps: 10 }, onBarcodeScanSuccess, () => { /* ignore background scan noise */ });
         } catch (err) {
             barcodeStatus.textContent = 'Camera unavailable — check permissions or try a different device.';
             console.error(err);
         }
-    });
+    }
+
+    addBarcodeBtn.addEventListener('click', startScanner);
     closeScannerBtn.addEventListener('click', stopScanner);
+
+    /* ---------------------------------------------------------------------
+       INLINE SCAN BUTTON — next to the Barcode field inside the Add/Edit
+       modal itself, for when you're already filling the form out and want
+       to scan instead of typing. Reuses the same scanner + lookup flow;
+       only difference is where the result lands (straight into the open
+       form's barcode field, not a fresh modal).
+    --------------------------------------------------------------------- */
+    const inlineScanBtn = document.getElementById('scan-barcode-inline-btn');
+    if (inlineScanBtn) {
+        inlineScanBtn.addEventListener('click', async () => {
+            if (typeof Html5Qrcode === 'undefined') { showToast('Barcode scanner library failed to load — check your connection.'); return; }
+
+            barcodeContainer.style.display = 'block';
+            barcodeStatus.textContent = 'Point the camera at the product\u2019s barcode.';
+            scanner = new Html5Qrcode('barcode-reader', {
+                ...(BARCODE_FORMATS ? { formatsToSupport: BARCODE_FORMATS } : {}),
+                verbose: false,
+            });
+            const facingMode = isMobileDevice() ? 'environment' : 'user';
+
+            try {
+                await scanner.start({ facingMode }, { fps: 10 }, async (decodedText) => {
+                    stopScanner();
+                    document.getElementById('product-barcode').value = decodedText;
+
+                    const result = await lookupBarcode(decodedText);
+                    if (result.type === 'master') {
+                        document.getElementById('product-name').value = result.name;
+                        document.getElementById('product-category').value = result.category;
+                        updateIconPreview();
+                        showToast('Barcode recognized — name and category prefilled, edit as needed.');
+                    } else if (result.type === 'own' && (!editingId || result.product.id !== editingId)) {
+                        showToast(`Heads up — "${result.product.name}" already uses this barcode.`);
+                    } else {
+                        showToast('Barcode captured.');
+                    }
+                }, () => { /* ignore background scan noise */ });
+            } catch (err) {
+                barcodeStatus.textContent = 'Camera unavailable — check permissions or try a different device.';
+                console.error(err);
+            }
+        });
+    }
+
+    // Manual typing check — if an admin pastes/types a barcode directly
+    // into the field instead of scanning, run the same lookup on blur so
+    // they get the same prefill-or-warn behavior either way.
+    document.getElementById('product-barcode').addEventListener('blur', async (e) => {
+        const barcode = e.target.value.trim();
+        if (!barcode) return;
+
+        const result = await lookupBarcode(barcode);
+        if (result.type === 'master' && !document.getElementById('product-name').value.trim()) {
+            document.getElementById('product-name').value = result.name;
+            document.getElementById('product-category').value = result.category;
+            updateIconPreview();
+            showToast('Barcode recognized — name and category prefilled, edit as needed.');
+        } else if (result.type === 'own' && (!editingId || result.product.id !== editingId)) {
+            showToast(`Heads up — "${result.product.name}" already uses this barcode.`);
+        }
+    });
 
     productForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -274,21 +456,21 @@
 
     async function saveProduct({ id, name, category, qr_code, price, stock }) {
         // REAL VERSION:
-        //   const res = await Auth.authFetch(id ? `/api/products/${id}` : '/api/products', {
-        //       method: id ? 'PUT' : 'POST',
-        //       headers: { 'Content-Type': 'application/json' },
-        //       body: JSON.stringify({ name, category, qr_code, price, stock_quantity: stock }),
-        //   });
-        //   if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Save failed.'); }
-        //   return res.json();
+          const res = await Auth.authFetch(id ? `/api/products/${id}` : '/api/products', {
+              method: id ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, category, qr_code, price, stock_quantity: stock }),
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Save failed.'); }
+          return res.json();
 
-        await new Promise(r => setTimeout(r, 400)); // simulate latency
-        if (id) {
-            const idx = MOCK_PRODUCTS.findIndex(p => p.id === id);
-            if (idx > -1) MOCK_PRODUCTS[idx] = { ...MOCK_PRODUCTS[idx], name, category, qr_code, price, stock };
-        } else {
-            MOCK_PRODUCTS.push({ id: nextId++, name, category, qr_code, price, stock });
-        }
+        // await new Promise(r => setTimeout(r, 400)); // simulate latency
+        // if (id) {
+        //     const idx = MOCK_PRODUCTS.findIndex(p => p.id === id);
+        //     if (idx > -1) MOCK_PRODUCTS[idx] = { ...MOCK_PRODUCTS[idx], name, category, qr_code, price, stock };
+        // } else {
+        //     MOCK_PRODUCTS.push({ id: nextId++, name, category, qr_code, price, stock });
+        // }
     }
 
     /* ---------------------------------------------------------------------
@@ -318,11 +500,11 @@
         // rather than a hard DELETE — transaction_items.product_id has a
         // foreign key to this row, and a hard delete would break that
         // history unless it cascades, which you almost certainly don't want.
-        //   const res = await Auth.authFetch(`/api/products/${pendingRemoveId}`, { method: 'DELETE' });
-        //   if (!res.ok) { showToast('Failed to remove product.'); return; }
+          const res = await Auth.authFetch(`/api/products/${pendingRemoveId}`, { method: 'DELETE' });
+          if (!res.ok) { showToast('Failed to remove product.'); return; }
 
-        await new Promise(r => setTimeout(r, 300));
-        MOCK_PRODUCTS = MOCK_PRODUCTS.filter(p => p.id !== pendingRemoveId);
+        // await new Promise(r => setTimeout(r, 300));
+        // MOCK_PRODUCTS = MOCK_PRODUCTS.filter(p => p.id !== pendingRemoveId);
 
         btn.disabled = false;
         btn.textContent = 'Remove';

@@ -85,7 +85,10 @@
                 </div>
                 <div>
                     <label for="product-barcode">Barcode <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
-                    <input type="text" id="product-barcode" placeholder="Leave blank if unused">
+                    <div class="barcode-field-row">
+                        <input type="text" id="product-barcode" placeholder="Leave blank if unused">
+                        <button type="button" id="scan-barcode-inline-btn" class="icon-btn" title="Scan barcode" aria-label="Scan barcode"><i class="fa-solid fa-barcode"></i></button>
+                    </div>
                 </div>
             </div>
 
@@ -136,5 +139,6 @@
 <script src="https://unpkg.com/html5-qrcode" defer></script>
 <script src="{{ url_for('static', path='category-icons.js') }}"></script>
 <script src="{{ url_for('static', path='auth.js') }}"></script>
+<script src="{{ url_for('static', path='polling.js') }}"></script>
 <script src="{{ url_for('static', path='stock.js') }}" defer></script>
 {% endblock %}

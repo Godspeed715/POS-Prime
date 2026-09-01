@@ -10,7 +10,8 @@
      6. Barcode scanner panel
      7. Cart panel
      8. Toast notifications
-     9. Responsive (tablet/mobile)
+     9. Settings modal
+     10. Responsive (tablet/mobile)
    ========================================================================== */
 
 /* ==========================================================================
@@ -114,7 +115,7 @@ h1,
 .nav-links, .nav-bottom { display: flex; flex-direction: column; gap: 26px; }
 .nav-bottom { margin-top: auto; }
 
-.sidebar a {
+.sidebar a, .sidebar-icon-btn {
     color: var(--text-muted);
     font-size: 18px;
     text-decoration: none;
@@ -125,8 +126,12 @@ h1,
     width: 40px;
     height: 40px;
     border-radius: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
 }
-.sidebar a:hover { color: var(--primary); background: var(--surface-alt); }
+.sidebar a:hover, .sidebar-icon-btn:hover { color: var(--primary); background: var(--surface-alt); }
 .sidebar a.active { color: var(--on-primary); background: var(--primary); }
 
 /* ==========================================================================
@@ -182,17 +187,6 @@ h1,
 .icon-btn:hover { transform: translateY(-1px); }
 .icon-btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 
-/* Light/dark toggle switch in the header */
-.theme-toggle { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 30px; padding: 6px; cursor: pointer; }
-.theme-toggle .track { width: 42px; height: 24px; background: var(--surface-alt); border-radius: 20px; position: relative; transition: background .2s; }
-.theme-toggle .thumb {
-    position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
-    background: var(--primary); border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; color: var(--on-primary);
-    font-size: 10px; transition: left .2s ease;
-}
-[data-theme="dark"] .theme-toggle .thumb { left: 20px; }
-
 /* Category filter pills */
 .categories { display: flex; gap: 10px; margin-bottom: 22px; overflow-x: auto; scroll-behavior: smooth; padding-bottom: 4px; }
 .categories::-webkit-scrollbar { height: 5px; }
@@ -206,27 +200,28 @@ h1,
 .category-pill.active { background: var(--text-main); color: var(--bg); border-color: var(--text-main); }
 .category-pill.scroll-btn { padding: 9px 14px; flex-shrink: 0; }
 
-/* Product grid */
-.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 18px; }
-.empty-state, .loading-note { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted); }
+/* Product list — plain text rows, no images. Each row: name+category on
+   the left, stock note, price, add button on the right. */
+.product-grid { display: flex; flex-direction: column; gap: 2px; }
+.empty-state, .loading-note { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .empty-state i, .loading-note i { font-size: 28px; margin-bottom: 10px; display: block; }
 
-.product-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px;
-    display: flex; flex-direction: column; transition: box-shadow .2s, transform .2s, opacity .2s;
+.product-row {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 16px; transition: background .15s, opacity .2s;
 }
-.product-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
-.product-card.sold-out { opacity: .5; }
-.product-card.sold-out:hover { transform: none; box-shadow: none; }
+.product-row:hover { background: var(--surface-alt); }
+.product-row.sold-out { opacity: .5; }
+.product-row.sold-out:hover { background: var(--surface); }
 
-.product-image img { width: 100%; height: 130px; object-fit: cover; border-radius: 12px; margin-bottom: 12px; display: block; }
-.product-info h3 { font-size: 15px; margin-bottom: 4px; font-weight: 700; }
+.product-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.product-row-main h3 { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-row-category { font-size: 12px; color: var(--text-muted); }
 
-.stock-note { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; min-height: 14px; }
+.stock-note { font-size: 11px; color: var(--text-muted); min-width: 60px; text-align: right; }
 .stock-note.low { color: var(--danger); font-weight: 600; }
 
-.product-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
-.price { font-weight: 700; font-size: 16px; }
+.price { font-weight: 700; font-size: 15px; min-width: 90px; text-align: right; }
 
 .add-btn {
     background: var(--text-main); color: var(--bg); border: none;
@@ -268,7 +263,6 @@ h1,
 .cart-empty { color: var(--text-muted); font-size: 14px; text-align: center; padding: 30px 10px; }
 
 .cart-item { display: flex; align-items: center; gap: 14px; }
-.cart-item-img { width: 54px; height: 54px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
 .cart-item-details { flex: 1; min-width: 0; }
 .cart-item-details h4 { font-size: 13px; margin-bottom: 3px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cart-item-price { font-weight: 700; font-size: 13px; color: var(--text-muted); }
@@ -316,7 +310,85 @@ h1,
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ==========================================================================
-   9. RESPONSIVE — sidebar becomes a top bar, columns stack below ~900px
+   9. SETTINGS MODAL
+   Triggered from the sidebar gear icon. Same overlay/panel pattern can be
+   reused for other future dialogs — keep the .modal-* classes generic.
+   ========================================================================== */
+.settings-modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 20, 16, 0.45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 1000;
+}
+.settings-modal-overlay[hidden] { display: none; }
+
+.settings-modal-panel {
+    background: var(--surface); border-radius: var(--radius); width: 100%; max-width: 380px;
+    box-shadow: var(--shadow); max-height: 90vh; overflow-y: auto;
+}
+
+.settings-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 22px; border-bottom: 1px solid var(--border);
+}
+.settings-modal-header h2 { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+
+.modal-close-btn {
+    background: none; border: none; color: var(--text-muted); cursor: pointer;
+    width: 32px; height: 32px; border-radius: 8px; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+}
+.modal-close-btn:hover { background: var(--surface-alt); color: var(--text-main); }
+
+.modal-body { padding: 22px; display: flex; flex-direction: column; gap: 26px; }
+
+.settings-section { display: flex; flex-direction: column; gap: 10px; }
+.settings-label {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-muted);
+}
+
+.settings-value-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 14px;
+}
+.settings-value-row code {
+    font-family: var(--font-body); font-size: 15px; font-weight: 700; letter-spacing: .02em;
+    color: var(--text-main); word-break: break-all;
+}
+
+.icon-btn-sm {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-main);
+    width: 30px; height: 30px; border-radius: 8px; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.icon-btn-sm:hover { color: var(--primary); border-color: var(--primary); }
+
+.settings-form { display: flex; flex-direction: column; gap: 10px; }
+.settings-form input {
+    padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--bg); color: var(--text-main); font-size: 14px; font-family: inherit; outline: none;
+}
+.settings-form input:focus { border-color: var(--primary); }
+
+.modal-primary-btn {
+    padding: 12px; background: var(--primary); color: var(--on-primary); border: none;
+    border-radius: var(--radius-sm); font-weight: 700; font-size: 14px; cursor: pointer;
+    font-family: inherit; transition: background .15s;
+}
+.modal-primary-btn:hover:not(:disabled) { background: var(--primary-hover); }
+.modal-primary-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.modal-danger-btn {
+    width: 100%; padding: 12px; background: none; color: var(--danger);
+    border: 1px solid var(--danger); border-radius: var(--radius-sm); font-weight: 700; font-size: 14px;
+    cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background .15s, color .15s;
+}
+.modal-danger-btn:hover { background: var(--danger); color: #fff; }
+
+/* ==========================================================================
+   10. RESPONSIVE — sidebar becomes a top bar, columns stack below ~900px
    ========================================================================== */
 @media (max-width: 900px) {
     body { overflow: auto; height: auto; }
@@ -329,7 +401,12 @@ h1,
     .nav-links, .nav-bottom { flex-direction: row; }
     .nav-bottom { margin-top: 0; margin-left: auto; }
     .main-content { flex-direction: column; }
-    .cart-section { width: 100%; border-radius: 0; }
+    /* Cash-out panel goes above the product list once things stack —
+       cashiers land straight on the order summary instead of having to
+       scroll past the whole catalog first. Above this breakpoint it stays
+       in its normal position on the right (see .cart-section base rule). */
+    .cart-section { width: 100%; border-radius: 0; order: -1; }
+    .products-section { order: 0; }
     .search-bar { width: 100%; }
     .header-controls h1 { width: 100%; order: -1; }
 }

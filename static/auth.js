@@ -13,7 +13,8 @@
    silently break (currentUser.role will be undefined for everyone).
 
    CONTRACT WITH THE BACKEND (not built yet — routes still pending):
-     POST /api/auth/login    { username, password } -> { access_token, username, role }
+     POST /api/auth/login    { business_code, username, password } ->
+                              { access_token, username, role, business_id }
                               + sets an httpOnly refresh_token cookie
      POST /api/auth/refresh  (cookie only, no body) -> same shape as login
      POST /api/auth/logout   (cookie only) -> clears the cookie
@@ -30,7 +31,7 @@
 
 const Auth = (function () {
     let accessToken = null;   // memory-only — never written to disk
-    let currentUser = null;   // { username, role }
+    let currentUser = null;   // { username, role, businessId }
 
     /**
      * Exchanges the httpOnly refresh cookie for a new access token.
@@ -48,7 +49,7 @@ const Auth = (function () {
 
             const data = await res.json();
             accessToken = data.access_token;
-            currentUser = { username: data.username, role: data.role };
+            currentUser = { username: data.username, role: data.role, businessId: data.business_id };
             return true;
         } catch (err) {
             console.error('Silent refresh failed', err);
@@ -56,12 +57,18 @@ const Auth = (function () {
         }
     }
 
-    async function login(username, password) {
+    /**
+     * businessCode is required for every role except super_admin, which
+     * isn't tied to any single business — that login path is being handled
+     * separately (see Backend_Requirements.md), not assumed here. Pass
+     * null/omit it for that case once that flow exists.
+     */
+    async function login(businessCode, username, password) {
         const res = await fetch('/api/auth/login', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
+            body: JSON.stringify({ business_code: businessCode, username, password }),
         });
 
         if (!res.ok) {
@@ -71,7 +78,7 @@ const Auth = (function () {
 
         const data = await res.json();
         accessToken = data.access_token;
-        currentUser = { username: data.username, role: data.role };
+        currentUser = { username: data.username, role: data.role, businessId: data.business_id };
         return currentUser;
     }
 
