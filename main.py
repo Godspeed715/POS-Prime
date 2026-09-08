@@ -4,6 +4,7 @@ from routers.products import router as products_router
 from core.database import pool
 from routers.auth import router as auth_router
 from routers.settings import router as settings_router
+from routers.checkout import router as checkout_router
 from contextlib import asynccontextmanager
 
 # Async Context Manager to startup and close connection pool
@@ -23,3 +24,4 @@ app.include_router(products_router)
 app.include_router(pages_router)
 app.include_router(auth_router)
 app.include_router(settings_router)
+app.include_router(checkout_router)
