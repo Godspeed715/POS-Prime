@@ -52,8 +52,8 @@
 
     async function fetchTransactionsFromServer() {
         // REAL VERSION: 
-        // const res = await Auth.authFetch('/api/transactions'); return res.json();
-        return MOCK_TRANSACTIONS;
+        const res = await Auth.authFetch('/api/transactions'); return res.json();
+        // return MOCK_TRANSACTIONS;
     }
 
     /* ---------------------------------------------------------------------
