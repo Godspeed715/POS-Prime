@@ -80,12 +80,12 @@ async def add_to_products_table(aconn: AsyncConnection, business_id: str, master
     async with aconn.transaction():
         async with aconn.cursor(row_factory=dict_row) as cur:
             await cur.execute('''
-                INSERT INTO business_products(business_id, master_product_id, custom_name, custom_category, price, stock_quantity)
+                INSERT INTO business_products(business_id, master_products_id, custom_name, custom_category, price, stock_quantity)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING master_product_id, id as business_product_id, custom_name, custom_category, price, stock_quantity
+                RETURNING master_products_id, id as business_product_id, custom_name, custom_category, price, stock_quantity
             ''', (business_id, master_product_id, custom_name, custom_category, price, stock_quantity))
 
-        return await cur.fetchone()
+            return await cur.fetchone()
 
 async def add_to_master_table(aconn: AsyncConnection, name: str, category: str, barcode: str):
     '''Adds a product to the master_products table'''
@@ -100,7 +100,7 @@ async def add_to_master_table(aconn: AsyncConnection, name: str, category: str, 
 
         return await cur.fetchone()
 
-async def modify_product_by_id(aconn: AsyncConnection, master_product_id: str, business_id: str, price: Decimal, stock_quantity: int, custom_name: str | None = None, custom_category: str | None = None):
+async def modify_product_by_id(aconn: AsyncConnection, business_product_id: str, price: Decimal, stock_quantity: int, custom_name: str | None = None, custom_category: str | None = None):
     '''Modifies a product using its master product id and the business id'''
     # Used aconn.transaction() to implement automatic rollback and commits
     async with aconn.transaction():
@@ -111,12 +111,12 @@ async def modify_product_by_id(aconn: AsyncConnection, master_product_id: str, b
                     stock_quantity = %s, 
                     custom_name = %s,
                     custom_category = %s
-                WHERE master_product_id = %s AND business_id = %s
-                RETURNING 1
-            ''', (price, stock_quantity, custom_name, custom_category, master_product_id, business_id))
+                WHERE id = %s
+                RETURNING id
+            ''', (price, stock_quantity, custom_name, custom_category, business_product_id))
             return await cur.fetchone()
 
-async def delete_product_by_id(aconn: AsyncConnection, master_product_id: str, business_id: str):
+async def delete_product_by_id(aconn: AsyncConnection, business_product_id: str):
     '''Deletes a product using its master product id and the business id'''
     # Used aconn.transaction() to implement automatic rollback and commits
     async with aconn.transaction():
@@ -124,7 +124,7 @@ async def delete_product_by_id(aconn: AsyncConnection, master_product_id: str, b
             await cur.execute('''
                 UPDATE business_products
                 SET is_active=FALSE
-                WHERE master_product_id = %s AND business_id = %s
-                RETURNING 1
-            ''', (master_product_id, business_id))
+                WHERE id = %s
+                RETURNING id
+            ''', (business_product_id))
             return await cur.fetchone()
