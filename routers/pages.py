@@ -40,3 +40,10 @@ async def signup(request: Request):
         name='signup.html'
     )
 
+@router.get('/transactions')
+async def transactions(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name='transactions.html'
+    )
+
