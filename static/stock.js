@@ -11,16 +11,36 @@
    at all, which is why the Add/Edit form has no upload/URL controls — the
    icon preview just follows whichever category is selected.
 
-   The "Barcode" field maps to the schema's `qr_code` column — that column
-   name is a holdover from when this was designed as QR scanning; it's
-   functionally a barcode field now (see the BARCODE_FORMATS config below,
-   restricted to EAN/UPC/CODE-128/etc formats, not QR_CODE).
+   The "Barcode" field maps to the schema's `barcode` column on
+   master_products (a holdover from when this was designed around a
+   single-tenant `qr_code` column — renamed as part of the master/business
+   product split; see Backend_Requirements.md §2.3).
+
+   ID HANDLING — IMPORTANT
+   ------------------------------------------------------------------------
+   /api/products_with_stocks returns TWO different ids per row:
+     - `id`                  → the shared master_products.id (same across
+                                every business that sells this item)
+     - `business_product_id` → THIS business's row — price, stock, and any
+                                per-tenant overrides live here
+
+   Every mutating call (PUT/DELETE on /api/products/:id) must target
+   `business_product_id`, never the master id — editing/removing a product
+   should only ever affect this business's own row. To avoid threading two
+   ids through the whole file, fetchProductsFromServer() remaps the field
+   at the fetch boundary: the object's `.id` becomes `business_product_id`,
+   and the original master id is kept on `.master_id` in case it's needed
+   later (e.g. for master-catalog debugging). Everything downstream
+   (rendering, editingId, save, delete) can then just use `p.id` /
+   `editingId` as-is and it will always be the correct per-business id.
 
    BARCODE LOOKUP (see lookupBarcode() below) — every barcode, whether
    typed manually or captured by either scanner entry point, is checked in
    two stages:
      1. Does THIS business already sell something with this barcode? If so,
-        open it in edit mode rather than risking a duplicate.
+        open it in edit mode rather than risking a duplicate. The id used
+        to open that edit is the MATCHED PRODUCT'S business_product_id —
+        never a master id.
      2. If not, does the barcode exist on the shared master catalog (i.e.
         some OTHER business already has a product with this barcode)? If
         so, prefill name + category from that master record — editable,
@@ -81,6 +101,9 @@
        category, stock_quantity (stock_quantity shown here as `stock` for
        consistency with script.js/reconcile.js — rename at the fetch
        boundary if your API returns the raw column name).
+
+       NOTE: in mock mode there is no separate master/business split, so
+       `id` here already behaves like a business_product_id would.
     ======================================================================= */
     let MOCK_PRODUCTS = [
         { id: 1, name: 'Rice (50kg bag)',        price: 65000, category: 'Food and Dry Staples',          stock: 12, qr_code: '' },
@@ -96,8 +119,19 @@
     let nextId = 100;
 
     async function fetchProductsFromServer() {
-        // REAL VERSION: 
-        const res = await Auth.authFetch('/api/products_with_stocks'); return res.json();
+        // REAL VERSION:
+        const res = await Auth.authFetch('/api/products_with_stocks');
+        const rows = await res.json();
+
+        // Remap: `.id` becomes the per-business row id (business_product_id),
+        // since that's the id every mutating call must use. The original
+        // shared master id is preserved on `.master_id`.
+        return rows.map(r => ({
+            ...r,
+            master_id: r.id,
+            id: r.business_product_id,
+        }));
+
         // return MOCK_PRODUCTS;
     }
 
@@ -120,26 +154,33 @@
      * See file header for the full behavior this drives.
      *
      * Returns one of:
-     *   { type: 'own',    product }               — this business already has it
-     *   { type: 'master', name, category }         — another business already has it
-     *   { type: 'none' }                            — brand new, nobody has it
+     *   { type: 'own',    product }        — this business already has it.
+     *                                         `product.id` here is ALWAYS
+     *                                         the business_product_id, so
+     *                                         it's safe to hand straight
+     *                                         to openProductModal().
+     *   { type: 'master', name, category }  — another business already has it
+     *   { type: 'none' }                    — brand new, nobody has it
      */
     async function lookupBarcode(barcode) {
-        // const ownMatch = MOCK_PRODUCTS.find(p => p.barcode === barcode);
-        // if (ownMatch) return { type: 'own', product: ownMatch };
+        // Check this business's own products first — already have them
+        // from the last renderTable() fetch, so this is a free local
+        // lookup, not a network round trip.
+        const ownMatch = lastProductsList.find(p => p.barcode === barcode);
+        if (ownMatch) return { type: 'own', product: ownMatch };
 
-        // REAL VERSION:
-          const res = await Auth.authFetch('/api/products/check-barcode', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ barcode }),
-          });
-          const data = await res.json();
-          if (data.found) return { type: 'master', name: data.name, category: data.category };
-          return { type: 'none' };
-        const masterMatch = MOCK_MASTER_CATALOG.find(m => m.barcode === barcode);
-        if (masterMatch) return { type: 'master', name: masterMatch.name, category: masterMatch.category };
-
+        // Not ours — check the shared master catalog for a cross-business
+        // match. Matches Backend_Requirements.md §4's documented
+        // check-barcode contract: { found: true, name, category } or
+        // { found: false }. This endpoint only ever needs to know about
+        // the master catalog, not this business's own products.
+        const res = await Auth.authFetch('/api/products/check-barcode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ barcode }),
+        });
+        const data = await res.json();
+        if (data.found) return { type: 'master', name: data.name, category: data.category };
         return { type: 'none' };
     }
 
@@ -176,7 +217,7 @@
             const low = p.stock > 0 && p.stock <= 5;
             const zero = p.stock === 0;
             const tr = document.createElement('tr');
-            tr.dataset.productId = p.id;
+            tr.dataset.productId = p.id; // business_product_id, per the remap in fetchProductsFromServer()
             tr.innerHTML = `
                 <td><img class="stock-thumb" src="${CategoryIcons.get(p.category)}" alt="${p.category}"></td>
                 <td><div class="stock-name">${p.name}</div></td>
@@ -202,6 +243,9 @@
     // endpoint as a full CRUD refresh. Instead it patches just the
     // quantity cell of whatever's currently rendered, using the same
     // /api/stock id->qty map POS polls.
+    //
+    // NOTE: /api/stock must key its map by business_product_id too, since
+    // that's what `lastProductsList[].id` and the row datasets now hold.
     function applyStockPoll(stockMap) {
         lastProductsList.forEach(p => { p.stock = stockMap[p.id] ?? p.stock; });
         MOCK_PRODUCTS.forEach(p => { p.stock = stockMap[p.id] ?? p.stock; });
@@ -240,7 +284,7 @@
     const productFormError = document.getElementById('product-form-error');
     const imagePreview = document.getElementById('image-preview');
     const categorySelect = document.getElementById('product-category');
-    let editingId = null;
+    let editingId = null; // business_product_id of the row being edited, or null when adding
 
     function updateIconPreview() {
         imagePreview.src = CategoryIcons.get(categorySelect.value);
@@ -248,7 +292,7 @@
     categorySelect.addEventListener('change', updateIconPreview);
 
     function openProductModal(product = null, prefillBarcode = null, prefillFromMaster = null) {
-        editingId = product ? product.id : null;
+        editingId = product ? product.id : null; // product.id is business_product_id here
         document.getElementById('product-modal-title').textContent = product ? 'Edit Product' : 'Add Product';
         document.getElementById('product-id').value = product ? product.id : '';
         document.getElementById('product-name').value = product ? product.name : (prefillFromMaster ? prefillFromMaster.name : '');
@@ -321,7 +365,7 @@
 
         if (result.type === 'own') {
             showToast(`This barcode is already linked to "${result.product.name}" — editing it.`);
-            openProductModal(result.product);
+            openProductModal(result.product); // result.product.id is business_product_id
         } else if (result.type === 'master') {
             showToast('Barcode recognized from another business\u2019s catalog — name and category prefilled, edit as needed.');
             openProductModal(null, barcode, { name: result.name, category: result.category });
@@ -442,6 +486,7 @@
         saveBtn.textContent = 'Saving...';
 
         try {
+            // editingId is the business_product_id (or null when adding).
             await saveProduct({ id: editingId, name, category, barcode: barcodeValue || null, price, stock });
             closeProductModal();
             renderTable();
@@ -454,22 +499,29 @@
         }
     });
 
-    async function saveProduct({ id, name, category, qr_code, price, stock }) {
+    async function saveProduct({ id, name, category, barcode, price, stock }) {
+        // `id` here is a business_product_id (or null/undefined for a new
+        // product) — never a master_products id. Use an explicit
+        // null/undefined check rather than truthiness, so an id of 0
+        // (or any other falsy-but-valid id your backend might use)
+        // doesn't get misrouted to POST.
+        const isEdit = id !== null && id !== undefined && id !== '';
+
         // REAL VERSION:
-          const res = await Auth.authFetch(id ? `/api/products/${id}` : '/api/products', {
-              method: id ? 'PUT' : 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name, category, qr_code, price, stock_quantity: stock }),
-          });
-          if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Save failed.'); }
-          return res.json();
+        const res = await Auth.authFetch(isEdit ? `/api/products/${id}` : '/api/products', {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, category, barcode, price, stock_quantity: stock }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Save failed.'); }
+        return res.json();
 
         // await new Promise(r => setTimeout(r, 400)); // simulate latency
-        // if (id) {
+        // if (isEdit) {
         //     const idx = MOCK_PRODUCTS.findIndex(p => p.id === id);
-        //     if (idx > -1) MOCK_PRODUCTS[idx] = { ...MOCK_PRODUCTS[idx], name, category, qr_code, price, stock };
+        //     if (idx > -1) MOCK_PRODUCTS[idx] = { ...MOCK_PRODUCTS[idx], name, category, barcode, price, stock };
         // } else {
-        //     MOCK_PRODUCTS.push({ id: nextId++, name, category, qr_code, price, stock });
+        //     MOCK_PRODUCTS.push({ id: nextId++, name, category, barcode, price, stock });
         // }
     }
 
@@ -477,10 +529,10 @@
        REMOVE CONFIRMATION MODAL
     --------------------------------------------------------------------- */
     const removeModalOverlay = document.getElementById('remove-modal-overlay');
-    let pendingRemoveId = null;
+    let pendingRemoveId = null; // business_product_id
 
     function openRemoveModal(product) {
-        pendingRemoveId = product.id;
+        pendingRemoveId = product.id; // business_product_id
         document.getElementById('remove-modal-text').innerHTML = `Remove <strong>${product.name}</strong> from the menu? This won't delete past sales history — it just stops it from being sold going forward.`;
         removeModalOverlay.classList.add('show');
     }
@@ -500,8 +552,8 @@
         // rather than a hard DELETE — transaction_items.product_id has a
         // foreign key to this row, and a hard delete would break that
         // history unless it cascades, which you almost certainly don't want.
-          const res = await Auth.authFetch(`/api/products/${pendingRemoveId}`, { method: 'DELETE' });
-          if (!res.ok) { showToast('Failed to remove product.'); return; }
+        const res = await Auth.authFetch(`/api/products/${pendingRemoveId}`, { method: 'DELETE' });
+        if (!res.ok) { showToast('Failed to remove product.'); btn.disabled = false; btn.textContent = 'Remove'; return; }
 
         // await new Promise(r => setTimeout(r, 300));
         // MOCK_PRODUCTS = MOCK_PRODUCTS.filter(p => p.id !== pendingRemoveId);
