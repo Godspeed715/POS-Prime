@@ -38,3 +38,8 @@
     background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
     padding: 1px 6px; font-size: 13px;
 }
+
+@media (max-width: 480px) {
+    .signup-section { padding: 16px; }
+    .signup-card { padding: 18px; }
+}

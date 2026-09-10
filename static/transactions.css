@@ -9,3 +9,7 @@
 
 .transaction-id { color: var(--text-muted); font-size: 12px; }
 .transaction-total { font-weight: 700; }
+
+@media (max-width: 480px) {
+    .transactions-section { padding: 16px; }
+}

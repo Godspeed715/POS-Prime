@@ -305,7 +305,8 @@ h1,
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
     background: var(--text-main); color: var(--bg); padding: 14px 22px; border-radius: 14px;
     font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
-    z-index: 999; box-shadow: var(--shadow); max-width: 340px; text-align: center;
+    z-index: 1100; /* was 999 — must beat .modal-overlay / .settings-modal-overlay (both 1000) */
+    box-shadow: var(--shadow); max-width: 340px; text-align: center;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -409,4 +410,22 @@ h1,
     .products-section { order: 0; }
     .search-bar { width: 100%; }
     .header-controls h1 { width: 100%; order: -1; }
+}
+
+@media (max-width: 480px) {
+    .products-section { padding: 16px; }
+    .cart-section { padding: 20px; }
+
+    /* The sidebar's 7 icon buttons (logo + 5 nav links + theme + settings)
+       don't wrap or scroll above this point — at phone widths they simply
+       overflow the viewport, which is the actual "pages don't fit" bug.
+       Shrink everything and let the row scroll as a fallback. */
+    .sidebar {
+        padding: 10px 12px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .logo { margin-right: 12px; font-size: 22px; }
+    .nav-links, .nav-bottom { gap: 12px; }
+    .sidebar a, .sidebar-icon-btn { width: 34px; height: 34px; font-size: 15px; flex-shrink: 0; }
 }
